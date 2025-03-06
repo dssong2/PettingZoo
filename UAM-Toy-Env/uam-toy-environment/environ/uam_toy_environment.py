@@ -11,66 +11,96 @@ class UAMToyEnvironment(ParallelEnv):
     metadata = {"render_modes": ["human"], "name": "uam_toy_environment_v0"}
     def __init__(self,
                  grid_size:int = 100,
-                 max_drones: int =20,
-                 R_v: int = 5,
-                 R_d: int = 2,
-                 R_o: int = 1,
+                 num_drones: int =20,
+                 S_v: int = 5,
+                 S_d: int = 2,
+                 S_o: int = 1,
                  max_accel: float = 5.0,
                  max_steps: int = 100,
-                 max_obstacles=10):
+                 max_obstacles=10,
+                 num_obstacles=10,
+                 num_vertiports=2,
+                 vertiports_loc=np.array([(1, 2), (3, 4)])):
+                
         """Create a UAMToyEnvironment environment
 
         Parameters
         ----------
-        grid_size : int, optional
-            size of the grid elements will be placed/moved on, by default 100
-        max_drones : int, optional
-            max number of drones, by default 20
-        R_v : int, optional
-            radius of vertiport, by default 5
-        R_d : int, optional
-            radius of drone, by default 2
-        R_o : int, optional
-            radius of obstacle, by default 1
+        grid_size : int optional
+            size of the grid, by default 100
+        num_drones : int optional
+            number of drones, by default 20
+        S_v : int, optional
+            side length of vertiport, by default 5
+        S_d : int, optional
+            side length of drone, by default 2
+        S_o : int, optional
+            side length of obstacle, by default 1
         max_accel : float, optional
-            max drone acceleration, by default 5.0
+            maximum acceleration applied to drone, by default 5.0
         max_steps : int, optional
-            max number of steps, by default 100
+            maximum number of steps for an episode, by default 100
         max_obstacles : int, optional
-            max number of obstacles, by default 10
+            maximum number of obstacles spawned, by default 10
+        num_vertiports : int, optional
+            total number of vertiports spawned, by default 2
+        vertiports_loc : NDArray containing tuples, optional
+            (x,y) location of vertiports on grid, by default np.array([(1, 2), (3, 4)])
         """
         self.grid_size = grid_size
-        self.max_drones = max_drones
-        self.R_v = R_v
-        self.R_d = R_d
-        self.R_o = R_o
+        self.num_drones = num_drones
+        self.S_v = S_v
+        self.S_d = S_d
+        self.S_o = S_o
         self.max_accel = max_accel
         self.max_steps = max_steps
         self.max_obstacles = max_obstacles
+        self.num_obstacles = num_obstacles # Added this parameter so I can get properly define get_state with num obstacles
+        self.num_vertiports = num_vertiports
+        self.vertiports_loc = vertiports_loc # np.array of tuples (x, y)
+        assert vertiports_loc.shape == num_vertiports, "Number of vertiport coordinates do not correspond to number of vertiports"
 
-        self.num_drones = None
         self.drones = None
-        self.num_obstacles = None
-
         self.time_step = None
         self.vertiport1 = None
         self.vertiport2 = None
-        self.obstacles_pos = None
-        self.drone_pos = None
-        self.drone_vel = None
+        self.obstacles_pos = None # np.array of tuples (x, y)
+        self.drone_pos = None # np.array of tuples (x, y)
+        self.drone_vel = None # np.array of tuples (x, y)
 
         self.dt = 0.1
 
         super().__init__()
 
+    def _get_state(self):
+        if self.drone_pos is None or self.drone_vel is None or self.obstacles_pos is None:
+            raise RuntimeError("Environment not initialized; call reset() first.")
+        state_list = []
+        state_list.extend(self.drone_pos)
+        state_list.extend(self.drone_vel)
+        state_list.extend(self.obstacles_pos)
+        state_list.extend([np.array(v) for v in self.vertiports_loc])
+        return state_list
+
+
     def _get_obs(self):
-        drone_obs = [np.zeros(80)] ## Implement properly
-        return drone_obs
-
+        obs = np.array([1, 1, 1])
+        # relative position, rel, locations of vertipoints, location of obstalces
+        # obs stored as dictionary, each drone is a key value, other part is the array e.g drone1 : rel pos, rel vel...
+        return obs
+    
+    def _is_overlapping(self, obj1_loc, obj1_side, obj2_loc, obj2_side):
+        invalid_range_hi = obj1_loc + np.array([obj1_side + obj2_side, obj1_side + obj2_side])
+        invalid_range_lo = obj1_loc - np.array([obj1_side + obj2_side, obj1_side + obj2_side])
+        if ((invalid_range_lo[0] < obj2_loc[0] < invalid_range_hi[0]) and
+            (invalid_range_lo[1] < obj2_loc[1] < invalid_range_hi[1])): # if obj2 overlaps with obj1
+            return True
+        return False
+    
     def reset(self, seed = None, options = None):
-        self.num_drones = random.randint(2, self.max_drones)
+        super().reset(seed, options)
 
-        self.drones = ["drone_" + str(i) for i in range(self.num_drones)]
+        self.drones = [i for i in range(self.num_drones)]
 
         self.num_obstacles = random.randint(0, self.max_obstacles)
 
@@ -84,34 +114,31 @@ class UAMToyEnvironment(ParallelEnv):
         self.vertiport2 = np.array([random.randint(mid_graph, self.grid_size), random.randint(mid_graph, self.grid_size)])
 
         self.obstacles_pos = np.empty(self.num_obstacles)
-        invalid_range1_hi = self.vertiport1 + np.array([self.R_v + self.R_o, self.R_v + self.R_o])
-        invalid_range1_lo = self.vertiport1 - np.array([self.R_v + self.R_o, self.R_v + self.R_o])
-        invalid_range2_hi = self.vertiport2 + np.array([self.R_v + self.R_o, self.R_v + self.R_o])
-        invalid_range2_lo = self.vertiport2 - np.array([self.R_v + self.R_o, self.R_v + self.R_o])
         for i in range(self.num_obstacles):
             self.obstacles_pos[i] = np.array([random.randint(0, self.grid_size), random.randint(0, self.grid_size)])
             count = 0
             # Keep running until a valid obstacle location found outside the vertiport area (square box around it)
             # Pretty sure this accounts for edge cases where vertiports are at the corners of the grid
             while True:
-                if ((invalid_range1_lo[0] < self.obstacles_pos[i][0] < invalid_range1_hi[0]) and
-                    (invalid_range1_lo[1] < self.obstacles_pos[i][1] < invalid_range1_hi[1]) and
-                    (invalid_range2_lo[0] < self.obstacles_pos[i][0] < invalid_range2_hi[0]) and
-                    (invalid_range2_lo[1] < self.obstacles_pos[i][1] < invalid_range2_hi[1])):
+                if (self._is_overlapping(self.vertiport1, self.S_v, self.obstacles_pos[i], self.S_o)):
                     self.obstacles_pos[i] = np.array([random.randint(0, self.grid_size), random.randint(0, self.grid_size)])
                     count += 1
-                    if count == 100:
+                    if count >= 100:
                         raise Exception("Failed to find valid obstacle location, likely because the grid size is too small or by chance")
                 else:
                     break
         # Allow for obstacle overlap? If not, additional logic will be needed
             # Will need to consider obstacle radius and eliminate all grid spaces taken up by an obstacle 
+        # Create a function that determines if two objects are overlapping, takes in two radii, for drones, obstacles, or vertipoints
 
         self.drone_pos = np.empty(self.num_drones)
-        vertiports = np.array([self.vertiport1, self.vertiport2])
         for i in range(self.num_drones):
-            loc = vertiports[random.randint(0,1)]     # Changes upon how many vertiports we want, for scaling up leave as numerical
-            self.drone_pos[i] = np.array([loc[0], loc[1]])
+            loc = self.vertiports_loc[random.randint(0,self.num_vertiports - 1)]     # Changes upon how many vertiports we want, for scaling up leave as numerical
+            self.drone_pos[i] = (loc[0], loc[1])
+
+        self.drone_vel = np.empty(self.num_drones)
+        for i in range(self.num_drones):
+            self.drone_vel[i] = (0.0, 0.0) # Set initial velocity to 0
         
         # Implement _get_obs()
         drone_obs = self._get_obs()
@@ -120,7 +147,8 @@ class UAMToyEnvironment(ParallelEnv):
         return obs
     
     def step(self, actions):
-        return super().step(actions)
+        super().step(actions)
+        return obs, reward
     
     def render(self):
         return super().render()
