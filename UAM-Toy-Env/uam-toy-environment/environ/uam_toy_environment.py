@@ -84,7 +84,40 @@ class UAMToyEnvironment(ParallelEnv):
 
 
     def _get_obs(self):
-        obs = np.array([1, 1, 1])
+        if self.drone_pos is None or self.drone_vel is None or self.obstacles_pos is None:
+            raise RuntimeError("Environment not initialized; call reset() first.")
+        
+        obs = {}
+
+        for i in range(self.num_drones):
+            drone_pos : tuple = self.drone_pos[i]
+            drone_vel : tuple = self.drone_vel[i]
+
+            rel_drone_positions = []
+            rel_drone_velocities = []
+            for j in range(self.num_drones):
+                if j != i:
+                    rel_pos = np.array(self.drone_pos[j]) - np.array(drone_pos)
+                    rel_vel = np.array(self.drone_vel[j]) - np.array(drone_vel)
+                    rel_drone_positions.append(rel_pos)
+                    rel_drone_velocities.append(rel_vel)
+
+            rel_obst_positions = [np.array(obst) - np.array(drone_pos) for obst in self.obstacles_pos]
+            rel_obst_velocities = [-np.array(drone_vel) for _ in self.obstacles_pos]
+
+            rel_vert_positions = [np.array(vp) - np.array(drone_pos) for vp in self.vertiports_loc]
+            rel_vert_velocities = [-np.array(drone_vel) for _ in self.vertiports_loc]
+
+            obs[i] = { # Name of drone is simply the index, same as in drones[] defined in reset()
+                "relative_drone_positions": np.array(rel_drone_positions),
+                "relative_drone_velocities": np.array(rel_drone_velocities),
+                "relative_obst_positions": np.array(rel_obst_positions),
+                "rel_obst_velocities" : np.array(rel_obst_velocities),
+                "relative_vert_positions": np.array(rel_vert_positions),
+                "rel_vert_velocities" : np.array(rel_vert_velocities)
+            }
+
+
         # relative position, rel, locations of vertipoints, location of obstalces
         # obs stored as dictionary, each drone is a key value, other part is the array e.g drone1 : rel pos, rel vel...
         return obs
@@ -142,12 +175,14 @@ class UAMToyEnvironment(ParallelEnv):
         
         # Implement _get_obs()
         drone_obs = self._get_obs()
-        obs = OrderedDict({f"{a.index}": drone_obs[a.index] for a in self.drones})
+        # obs = OrderedDict({f"{a}": drone_obs[a] for a in self.drones}) do I need this line if my key is already defined in the dictionary drone_obs?
 
-        return obs
+        return drone_obs
     
     def step(self, actions):
         super().step(actions)
+        obs = self._get_obs()
+        reward = ...
         return obs, reward
     
     def render(self):
