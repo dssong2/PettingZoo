@@ -72,7 +72,7 @@ class UAMToyEnvironment(ParallelEnv):
 
         super().__init__()
 
-    def _get_state(self):
+    def _get_state(self): # add a boolean crashed into state? can use in _get_reward()
         if self.drone_pos is None or self.drone_vel is None or self.obstacles_pos is None:
             raise RuntimeError("Environment not initialized; call reset() first.")
         state_list = []
@@ -83,7 +83,7 @@ class UAMToyEnvironment(ParallelEnv):
         return state_list
 
 
-    def _get_obs(self):
+    def _get_obs(self): 
         if self.drone_pos is None or self.drone_vel is None or self.obstacles_pos is None:
             raise RuntimeError("Environment not initialized; call reset() first.")
         
@@ -109,11 +109,11 @@ class UAMToyEnvironment(ParallelEnv):
             rel_vert_velocities = [-np.array(drone_vel) for _ in self.vertiports_loc]
 
             obs[i] = { # Name of drone is simply the index, same as in drones[] defined in reset()
-                "relative_drone_positions": np.array(rel_drone_positions),
-                "relative_drone_velocities": np.array(rel_drone_velocities),
-                "relative_obst_positions": np.array(rel_obst_positions),
+                "rel_drone_positions": np.array(rel_drone_positions),
+                "rel_drone_velocities": np.array(rel_drone_velocities),
+                "rel_obst_positions": np.array(rel_obst_positions),
                 "rel_obst_velocities" : np.array(rel_obst_velocities),
-                "relative_vert_positions": np.array(rel_vert_positions),
+                "rel_vert_positions": np.array(rel_vert_positions),
                 "rel_vert_velocities" : np.array(rel_vert_velocities)
             }
 
@@ -122,6 +122,10 @@ class UAMToyEnvironment(ParallelEnv):
         # obs stored as dictionary, each drone is a key value, other part is the array e.g drone1 : rel pos, rel vel...
         return obs
     
+    def _get_reward(self, agent, state, action):
+        # state = self._get_state() when called in step, use the crashed boolean to help determine reward
+        return 1
+
     def _is_overlapping(self, obj1_loc, obj1_side, obj2_loc, obj2_side):
         invalid_range_hi = obj1_loc + np.array([obj1_side + obj2_side, obj1_side + obj2_side])
         invalid_range_lo = obj1_loc - np.array([obj1_side + obj2_side, obj1_side + obj2_side])
@@ -188,8 +192,12 @@ class UAMToyEnvironment(ParallelEnv):
     def render(self):
         return super().render()
     
-    def observation_space(self, agent):
-        return super().observation_space(agent)
+    def observation_space(self, agent : int): # agent is int because we define the names of drones by numbers
+        super().observation_space(agent)
+        obs = self._get_obs() # obs type 2D dictionary, where each drone has a dictionary of individual observations
+        return obs[agent] # returns a 1D dictionary, with {"rel_pos": x, "rel_vel": y, ...}
     
     def action_space(self, agent):
-        return super().action_space(agent)
+        super().action_space(agent)
+        action = Discrete(4)
+        return action
