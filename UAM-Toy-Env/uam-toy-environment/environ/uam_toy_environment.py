@@ -152,13 +152,10 @@ class UAMToyEnvironment(ParallelEnv):
             or self.drone_vertiport is None
         ):
             raise RuntimeError("Environment not initialized; call reset() first.")
-        # state = self._get_state() when called in step, use the crashed boolean to help determine reward
-        ## vv WHY IS IT A ARRAY OF TUPLE?? vv temp fix by casting to int?
-        drone_starting_vertiport: int = int(
-            self.drone_vertiport[agent]
-        )  ## For more than two vertiports, which vertiport does each drone go to??
+        ## vv WHY IS IT AN ARRAY OF TUPLE?? does this actually just work??
+        drone_starting_vertiport: int = self.drone_vertiport[agent]
+        ## For more than two vertiports, which vertiport does each drone go to??
 
-        drone_starting_vertiport: int = int(self.drone_vertiport[agent])
         # Do +1 to get the correct vertiport index, since the vertiport index is 0-indexed
         initial_pos = obs_initial[agent]["rel_vert_positions"][
             self.num_vertiports - (drone_starting_vertiport + 1)
@@ -215,9 +212,9 @@ class UAMToyEnvironment(ParallelEnv):
 
         self.time_step = 0
 
-        # Randomized vertiports or no? Or randomize vertiports in a certain area of the grid (quad 1, quad 3)
+        ## Randomized vertiports or no? Or randomize vertiports in a certain area of the grid (quad 1, quad 3)
         # Currently set to random places on the graph
-        # More sophisticated version, set requried distance between two vertiports is at least some distance as a function of grid size
+        # More sophisticated version, set required distance between two vertiports is at least some distance as a function of grid size
         mid_graph = (int)(self.grid_size / 2)
         self.vertiport1 = (random.randint(0, mid_graph), random.randint(0, mid_graph))
         self.vertiport2 = (
@@ -235,7 +232,7 @@ class UAMToyEnvironment(ParallelEnv):
             )
             count = 0
             # Keep running until a valid obstacle location found outside the vertiport area (square box around it)
-            # Pretty sure this accounts for edge cases where vertiports are at the corners of the grid
+            ## Pretty sure this accounts for edge cases where vertiports are at the corners of the grid
             while True:
                 if self._is_overlapping(
                     self.vertiport1, self.S_v, self.obstacles_pos[i], self.S_o
@@ -261,12 +258,10 @@ class UAMToyEnvironment(ParallelEnv):
         self.drone_vertiport = np.empty(self.num_drones, dtype=int)
         for i in range(self.num_drones):
             num_vertiport: int = random.randint(0, self.num_vertiports - 1)
-            loc = self.vertiports_loc[
-                num_vertiport
-            ]  # Changes upon how many vertiports we want, for scaling up leave as numerical
+            loc = self.vertiports_loc[num_vertiport]
+            # Changes upon how many vertiports we want, for scaling up leave as numerical
             self.drone_pos[i] = (loc[0], loc[1])
             self.drone_vertiport[i] = num_vertiport
-
         self.drone_vel = np.empty(self.num_drones)
         for i in range(self.num_drones):
             self.drone_vel[i] = (0.0, 0.0)  # Set initial velocity to 0
