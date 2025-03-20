@@ -82,6 +82,18 @@ class UAMToyEnvironment(ParallelEnv):
         super().__init__()
 
     def _get_state(self):
+        """Get the current state of the environment.
+
+        Returns
+        -------
+        list
+            List containing the drone positions, drone velocities, obstacle positions, and vertiport locations.
+
+        Raises
+        ------
+        RuntimeError
+            If the environment has not been initialized; call reset() first.
+        """
         if (
             self.drone_pos is None
             or self.drone_vel is None
@@ -96,6 +108,18 @@ class UAMToyEnvironment(ParallelEnv):
         return state_list  # change state_list to a dictionary, or vice-versa for _get_obs (keep the output type the same)
 
     def _get_obs(self):
+        """Get the current observations for all drones.
+
+        Returns
+        -------
+        dict
+            Dictionary containing the observations for all drones. The keys are the drone indices and the values are dictionaries containing the observations for each drone.
+
+        Raises
+        ------
+        RuntimeError
+            If the environment has not been initialized; call reset() first.
+        """
         if (
             self.drone_pos is None
             or self.drone_vel is None
@@ -144,6 +168,29 @@ class UAMToyEnvironment(ParallelEnv):
         return obs
 
     def _get_reward(self, agent: int, obs_initial: dict, obs_next: dict, action):
+        """Compute the reward for a single drone (agent) based on the initial and next observations and the action taken.
+
+        Parameters
+        ----------
+        agent : int
+            Index of the drone for which to compute the reward.
+        obs_initial : dict
+            Dictionary containing the initial observations for all drones.
+        obs_next : dict
+            Dictionary containing the next observations for all drones.
+        action : np.array
+            Action taken by the agent.
+
+        Returns
+        -------
+        float
+            Reward for the agent.
+
+        Raises
+        ------
+        RuntimeError
+            If the environment has not been initialized; call reset() first.
+        """
         if (
             self.drone_pos is None
             or self.drone_vel is None
@@ -165,8 +212,8 @@ class UAMToyEnvironment(ParallelEnv):
         ]
         # if moving closer to vertiport, positive reward, negative if moving farther away
         reward_goal = -np.linalg.norm(next_pos) + np.linalg.norm(initial_pos)
-        agent_collision = 0
-        obstacle_collision = 0
+        agent_collision = 0.0
+        obstacle_collision = 0.0
         for i in range(self.num_drones):
             if i != agent:
                 if self._is_overlapping(
@@ -175,7 +222,7 @@ class UAMToyEnvironment(ParallelEnv):
                     self.drone_pos[i],
                     self.S_d,
                 ):
-                    agent_collision += -100
+                    agent_collision += -100.0
         for i in range(self.num_obstacles):
             if self._is_overlapping(  ## implement safety radius here
                 self.drone_pos[agent],
@@ -183,7 +230,7 @@ class UAMToyEnvironment(ParallelEnv):
                 self.obstacles_pos[i],
                 self.S_o,
             ):
-                obstacle_collision += -50
+                obstacle_collision += -50.0
         reward = reward_goal + agent_collision + obstacle_collision
 
         return reward
@@ -204,6 +251,25 @@ class UAMToyEnvironment(ParallelEnv):
         return False
 
     def reset(self, seed=None, options=None):
+        """Reset the environment to its initial state.
+
+        Parameters
+        ----------
+        seed : _type_, optional
+            _description_, by default None
+        options : _type_, optional
+            _description_, by default None
+
+        Returns
+        -------
+        dict
+            Dictionary containing the initial observations for all drones.
+
+        Raises
+        ------
+        RuntimeError
+            If a valid obstacle location cannot be found.
+        """
         super().reset(seed, options)
 
         self.drones = [i for i in range(self.num_drones)]
@@ -245,7 +311,7 @@ class UAMToyEnvironment(ParallelEnv):
                     )
                     count += 1
                     if count >= 100:
-                        raise Exception(
+                        raise RuntimeError(
                             "Failed to find valid obstacle location, likely because the grid size is too small or by chance"
                         )
                 else:
@@ -273,6 +339,31 @@ class UAMToyEnvironment(ParallelEnv):
         return drone_obs
 
     def step(self, actions):
+        """Take a step in the environment.
+
+        Parameters
+        ----------
+        actions : Box
+            Actions taken by the agents.
+
+        Returns
+        -------
+        dict
+            Dictionary containing the next observations for all drones.
+        dict
+            Dictionary containing the rewards for all drones.
+        dict
+            Dictionary containing whether each drone has terminated.
+        dict
+            Dictionary containing whether each drone has been truncated.
+        dict
+            Dictionary containing additional information for each drone.
+
+        Raises
+        ------
+        RuntimeError
+            If the environment has not been initialized; call reset() first.
+        """
         if (
             self.drones is None
             or self.drone_pos is None
@@ -343,6 +434,18 @@ class UAMToyEnvironment(ParallelEnv):
 
     ## How to account for when drones spawn at the vertiports and must be overlapping?
     def collided(self):
+        """Check if any drones or obstacles have collided.
+
+        Returns
+        -------
+        bool
+            True if any drones or obstacles have collided, False otherwise.
+
+        Raises
+        ------
+        RuntimeError
+            If the environment has not been initialized; call reset() first.
+        """
         if (
             self.drone_pos is None
             or self.num_drones is None
@@ -379,16 +482,14 @@ class UAMToyEnvironment(ParallelEnv):
     def observation_space(
         self, drone: int
     ):  # agent is int because we define the names of drones by numbers
+        """Get the observation space for a single drone.
+
+        Returns
+        -------
+        Dict
+            Dictionary containing the observation space for a single drone.
         """
-        Define the observation space for a single drone (agent).
-        Each observation is a dictionary with:
-        - "rel_drone_positions": positions of all other drones relative to this one.
-        - "rel_drone_velocities": velocities of all other drones relative to this one.
-        - "rel_obst_positions": positions of obstacles relative to this drone.
-        - "rel_obst_velocities": velocities of obstacles relative to this drone.
-        - "rel_vert_positions": positions of vertiports relative to this drone.
-        - "rel_vert_velocities": velocities of vertiports relative to this drone.
-        """
+
         max_velocity = self.max_accel * self.dt
         max_rel_drone_vel = 2 * max_velocity
 
@@ -434,7 +535,19 @@ class UAMToyEnvironment(ParallelEnv):
         )
         return obs_space
 
-    def action_space(self, agent):
+    def action_space(self, agent: int):
+        """Get the action space for a single drone.
+
+        Parameters
+        ----------
+        agent : int
+            _description_
+
+        Returns
+        -------
+        Box
+            the action for a single drone
+        """
         action = Box(
             low=-self.max_accel, high=self.max_accel, shape=(2,), dtype=np.float32
         )
