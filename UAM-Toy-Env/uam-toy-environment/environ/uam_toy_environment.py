@@ -25,6 +25,7 @@ class UAMToyEnvironment(ParallelEnv):
         num_obstacles=10,
         num_vertiports=2,
         vertiports_loc=np.array([(1, 2), (3, 4)]),
+        safety_radius=5,
     ):
         """Create a UAMToyEnvironment environment
 
@@ -65,6 +66,7 @@ class UAMToyEnvironment(ParallelEnv):
         assert (
             vertiports_loc.shape == num_vertiports
         ), "Number of vertiport coordinates do not correspond to number of vertiports"
+        self.safety_radius = safety_radius
 
         self.drones = None
         self.time_step = None
@@ -90,7 +92,7 @@ class UAMToyEnvironment(ParallelEnv):
         state_list.append(self.drone_pos)
         state_list.append(self.drone_vel)
         state_list.append(self.obstacles_pos)
-        state_list.append([np.array(v) for v in self.vertiports_loc])
+        state_list.append(self.vertiports_loc)
         return state_list  # change state_list to a dictionary, or vice-versa for _get_obs (keep the output type the same)
 
     def _get_obs(self):
@@ -141,7 +143,7 @@ class UAMToyEnvironment(ParallelEnv):
         # obs stored as dictionary, each drone is a key value, other part is the array e.g drone1 : rel pos, rel vel...
         return obs
 
-    def _get_reward(self, agent, obs_initial: dict, obs_next, action):
+    def _get_reward(self, agent: int, obs_initial: dict, obs_next: dict, action):
         if (
             self.drone_pos is None
             or self.drone_vel is None
@@ -151,21 +153,43 @@ class UAMToyEnvironment(ParallelEnv):
         ):
             raise RuntimeError("Environment not initialized; call reset() first.")
         # state = self._get_state() when called in step, use the crashed boolean to help determine reward
-        current_pos = self.drone_pos[
-            agent
-        ]  ## vv WHY IS IT A ARRAY OF TUPLE?? vv ****fix later****
-        drone_starting_vertiport: int = self.drone_vertiport[
-            agent
-        ]  # For more than two vertiports, which vertiport does each drone go to??
-        vertiport_goal = self.vertiports_loc[
-            1 - drone_starting_vertiport
-        ]  # The vertiport the drone is not at is the goal vertiport
-        reward_goal = -np.linalg.norm(
-            current_pos - vertiport_goal
-        )  # reward for reaching goal
-        reward = reward_goal + reward_collision + reward_obstacle
+        ## vv WHY IS IT A ARRAY OF TUPLE?? vv temp fix by casting to int?
+        drone_starting_vertiport: int = int(
+            self.drone_vertiport[agent]
+        )  ## For more than two vertiports, which vertiport does each drone go to??
 
-        return 1
+        drone_starting_vertiport: int = int(self.drone_vertiport[agent])
+        # Do +1 to get the correct vertiport index, since the vertiport index is 0-indexed
+        initial_pos = obs_initial[agent]["rel_vert_positions"][
+            self.num_vertiports - (drone_starting_vertiport + 1)
+        ]
+        next_pos = obs_next[agent]["rel_vert_positions"][
+            self.num_vertiports - (drone_starting_vertiport + 1)
+        ]
+        # if moving closer to vertiport, positive reward, negative if moving farther away
+        reward_goal = -np.linalg.norm(next_pos) + np.linalg.norm(initial_pos)
+        agent_collision = 0
+        obstacle_collision = 0
+        for i in range(self.num_drones):
+            if i != agent:
+                if self._is_overlapping(
+                    self.drone_pos[agent],
+                    self.S_d + self.safety_radius,
+                    self.drone_pos[i],
+                    self.S_d,
+                ):
+                    agent_collision += -100
+        for i in range(self.num_obstacles):
+            if self._is_overlapping(  ## implement safety radius here
+                self.drone_pos[agent],
+                self.S_d + self.safety_radius,
+                self.obstacles_pos[i],
+                self.S_o,
+            ):
+                obstacle_collision += -50
+        reward = reward_goal + agent_collision + obstacle_collision
+
+        return reward
 
     def _is_overlapping(
         self, obj1_loc: tuple[int, int], obj1_side: int, obj2_loc: tuple, obj2_side
@@ -200,6 +224,9 @@ class UAMToyEnvironment(ParallelEnv):
             random.randint(mid_graph, self.grid_size),
             random.randint(mid_graph, self.grid_size),
         )
+        self.vertiports_loc = np.array(
+            [self.vertiport1, self.vertiport2]
+        )  ## Adjust for scaling up to more than two vertiports
 
         self.obstacles_pos = np.empty(self.num_obstacles)
         for i in range(self.num_obstacles):
@@ -231,9 +258,9 @@ class UAMToyEnvironment(ParallelEnv):
         # Create a function that determines if two objects are overlapping, takes in two radii, for drones, obstacles, or vertipoints
 
         self.drone_pos = np.empty(self.num_drones)
-        self.drone_vertiport = np.empty(self.num_drones)
+        self.drone_vertiport = np.empty(self.num_drones, dtype=int)
         for i in range(self.num_drones):
-            num_vertiport = random.randint(0, self.num_vertiports - 1)
+            num_vertiport: int = random.randint(0, self.num_vertiports - 1)
             loc = self.vertiports_loc[
                 num_vertiport
             ]  # Changes upon how many vertiports we want, for scaling up leave as numerical
@@ -252,10 +279,13 @@ class UAMToyEnvironment(ParallelEnv):
 
     def step(self, actions):
         if (
-            self.drone_pos is None
+            self.drones is None
+            or self.drone_pos is None
             or self.drone_vel is None
             or self.obstacles_pos is None
             or self.num_drones is None
+            or self.time_step is None
+            or self.drone_vertiport is None
         ):
             raise RuntimeError("Environment not initialized; call reset() first.")
 
@@ -264,13 +294,11 @@ class UAMToyEnvironment(ParallelEnv):
         # take an action
         # update state with kinematics equations for each drone
         for i in range(self.num_drones):
-            action = self.action_space(
-                i
-            ).sample()  # i not needed as param bc agent param not used?
+            action = self.action_space(i).sample()
+            # i not needed as param bc agent param not used?
             # action is np.array([x accel, y accel])
-            vx, vy = self.drone_vel[
-                i
-            ]  # use _get_state() to get the current drone vel? or can i just access the global variable
+            vx, vy = self.drone_vel[i]
+            ## ^^ use _get_state() to get the current drone vel? or can i just access the global variable
             # np.random.normal(0, 1) adds Gaussian noise to the velocity and position
             vx += action[0] * self.dt + vx + np.random.normal(0, 1)
             vy += action[1] * self.dt + vy + np.random.normal(0, 1)
@@ -292,41 +320,122 @@ class UAMToyEnvironment(ParallelEnv):
             self.drone_pos[i] = (px, py)
         # get next_obs
         next_obs = self._get_obs()
+        self.time_step += 1  # increment time step
+
         # compute reward using obs and next_obs
-        # check term, trunc.
-        reward = ...
-        terminated = ...
-        truncated = ...
-        info = ...
-        return next_obs, reward, terminated, truncated, info
+        rewards = {}
+        for drone in self.drones:
+            reward = self._get_reward(drone, current_obs, next_obs, action)
+            rewards[i] = reward
+        # check term, trunc, info
+        terminated = {}
+        for drone in self.drones:
+            if (
+                (self.time_step >= self.max_steps)
+                or (
+                    self.drone_pos[drone]
+                    == self.vertiports_loc[self.drone_vertiport[drone]]
+                )
+                or (self.collided())
+            ):
+                terminated[drone] = True
+            else:
+                terminated[drone] = False
+        # Default implementation for truncated and info (can implement later)
+        truncated = {i: False for i in self.drones}
+        info = {i: {} for i in self.drones}
+        return next_obs, rewards, terminated, truncated, info
+
+    ## How to account for when drones spawn at the vertiports and must be overlapping?
+    def collided(self):
+        if (
+            self.drone_pos is None
+            or self.num_drones is None
+            or self.obstacles_pos is None
+        ):
+            raise RuntimeError("Environment not initialized; call reset() first.")
+        # Is ok for drones to be within safety radius of each other, just negatively rewarded
+        for i in range(self.num_drones):
+            for j in range(self.num_drones):
+                if i != j:
+                    if self._is_overlapping(
+                        self.drone_pos[i],
+                        self.S_d,
+                        self.drone_pos[j],
+                        self.S_d,
+                    ):
+                        return True
+        for i in range(self.num_drones):
+            for j in range(self.num_obstacles):
+                if self._is_overlapping(
+                    self.drone_pos[i],
+                    self.S_d,
+                    self.obstacles_pos[j],
+                    self.S_o,
+                ):
+                    return True
+        return False
 
     def render(self):
         return super().render()
 
+    ## observation_space is a template of observations for each drone, right?
+    ## drone parameter not used because each drone has the same set of observations?
     def observation_space(
-        self, agent: int
+        self, drone: int
     ):  # agent is int because we define the names of drones by numbers
-        if (
-            self.drone_pos is None
-            or self.drone_vel is None
-            or self.obstacles_pos is None
-            or self.num_drones is None
-        ):
-            raise RuntimeError("Environment not initialized; call reset() first.")
+        """
+        Define the observation space for a single drone (agent).
+        Each observation is a dictionary with:
+        - "rel_drone_positions": positions of all other drones relative to this one.
+        - "rel_drone_velocities": velocities of all other drones relative to this one.
+        - "rel_obst_positions": positions of obstacles relative to this drone.
+        - "rel_obst_velocities": velocities of obstacles relative to this drone.
+        - "rel_vert_positions": positions of vertiports relative to this drone.
+        - "rel_vert_velocities": velocities of vertiports relative to this drone.
+        """
+        max_velocity = self.max_accel * self.dt
+        max_rel_drone_vel = 2 * max_velocity
+
         obs_space = Dict(
             {
-                a: Dict(
-                    {
-                        "rel_drone_positions": Box(
-                            low=0, high=self.grid_size, shape=(2,), dtype=np.float32
-                        ),
-                        "rel_drone_velocity": Box(
-                            low=0, high=3, shape=(2,), dtype=np.float32
-                        ),
-                    }
-                )
+                "rel_drone_positions": Box(
+                    low=0,
+                    high=self.grid_size,
+                    shape=(self.num_drones - 1, 2),
+                    dtype=np.float32,
+                ),
+                "rel_drone_velocities": Box(
+                    low=-max_rel_drone_vel,
+                    high=max_rel_drone_vel,
+                    shape=(self.num_drones - 1, 2),
+                    dtype=np.float32,
+                ),
+                "rel_obst_positions": Box(
+                    low=0,
+                    high=self.grid_size,
+                    shape=(self.num_obstacles, 2),
+                    dtype=np.float32,
+                ),
+                "rel_obst_velocities": Box(
+                    low=-max_velocity,
+                    high=max_velocity,
+                    shape=(self.num_obstacles, 2),
+                    dtype=np.float32,
+                ),
+                "rel_vert_positions": Box(
+                    low=0,
+                    high=self.grid_size,
+                    shape=(self.num_vertiports, 2),
+                    dtype=np.float32,
+                ),
+                "rel_vert_velocities": Box(
+                    low=-max_velocity,
+                    high=max_velocity,
+                    shape=(self.num_vertiports, 2),
+                    dtype=np.float32,
+                ),
             }
-            for a in range(self.num_drones)
         )
         return obs_space
 
