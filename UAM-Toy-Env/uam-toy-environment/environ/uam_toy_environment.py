@@ -20,6 +20,7 @@ class UAMToyEnvironment(ParallelEnv):
         S_d: int = 2,
         S_o: int = 1,
         max_accel: float = 5.0,
+        max_vel : float = 500.0,
         max_steps: int = 100,
         max_obstacles=10,
         num_obstacles=10,
@@ -43,6 +44,8 @@ class UAMToyEnvironment(ParallelEnv):
             side length of obstacle, by default 1
         max_accel : float, optional
             maximum acceleration applied to drone, by default 5.0
+        max_vel : float, optional
+            maximum velocity of drone, by default 500.0
         max_steps : int, optional
             maximum number of steps for an episode, by default 100
         max_obstacles : int, optional
@@ -58,6 +61,7 @@ class UAMToyEnvironment(ParallelEnv):
         self.S_d = S_d
         self.S_o = S_o
         self.max_accel = max_accel
+        self.max_vel = max_vel
         self.max_steps = max_steps
         self.max_obstacles = max_obstacles
         self.num_obstacles = num_obstacles  # Added this parameter so I can get properly define get_state with num obstacles
@@ -68,7 +72,8 @@ class UAMToyEnvironment(ParallelEnv):
         ), "Number of vertiport coordinates do not correspond to number of vertiports"
         self.safety_radius = safety_radius
 
-        self.drones = None
+        self.drones = None # can initialize in innit
+        self.destinations_loc = None  # np.array of tuples (x, y), randomized for more than 2 vertiports, implement after testing 2 vertiports
         self.time_step = None
         self.vertiport1 = None
         self.vertiport2 = None
@@ -414,7 +419,8 @@ class UAMToyEnvironment(ParallelEnv):
             reward = self._get_reward(drone, current_obs, next_obs, action)
             rewards[i] = reward
         # check term, trunc, info
-        terminated = {}
+        terminated = False # Check if all drones have reached final destination, or if all collided 
+        #FIXME
         for drone in self.drones:
             if (
                 (self.time_step >= self.max_steps)
@@ -424,11 +430,9 @@ class UAMToyEnvironment(ParallelEnv):
                 )
                 or (self.collided())
             ):
-                terminated[drone] = True
-            else:
-                terminated[drone] = False
+                terminated = True
         # Default implementation for truncated and info (can implement later)
-        truncated = {i: False for i in self.drones}
+        truncated = {i: False for i in self.drones} # if self.time_step >= self.max_steps else False, just a boolean
         info = {i: {} for i in self.drones}
         return next_obs, rewards, terminated, truncated, info
 
@@ -474,7 +478,8 @@ class UAMToyEnvironment(ParallelEnv):
                     return True
         return False
 
-    def render(self):
+    def render(self): # image numpy array, returns an image of the environment for each time step, 
+        # piece together all the images to create a video
         return super().render()
 
     ## observation_space is a template of observations for each drone, right?
@@ -489,15 +494,14 @@ class UAMToyEnvironment(ParallelEnv):
         Dict
             Dictionary containing the observation space for a single drone.
         """
+        assert self.drones is not None, "Environment not initialized; call reset() first."
+        max_rel_drone_vel = float(2. * self.max_vel)
 
-        max_velocity = self.max_accel * self.dt
-        max_rel_drone_vel = 2 * max_velocity
-
-        obs_space = Dict(
+        obs_space = Dict({ i: Dict(
             {
                 "rel_drone_positions": Box(
                     low=0,
-                    high=self.grid_size,
+                    high=self.grid_size - 1,
                     shape=(self.num_drones - 1, 2),
                     dtype=np.float32,
                 ),
@@ -509,30 +513,30 @@ class UAMToyEnvironment(ParallelEnv):
                 ),
                 "rel_obst_positions": Box(
                     low=0,
-                    high=self.grid_size,
+                    high=self.grid_size - 1,
                     shape=(self.num_obstacles, 2),
                     dtype=np.float32,
                 ),
                 "rel_obst_velocities": Box(
-                    low=-max_velocity,
-                    high=max_velocity,
+                    low=-self.max_vel,
+                    high=self.max_vel,
                     shape=(self.num_obstacles, 2),
                     dtype=np.float32,
                 ),
                 "rel_vert_positions": Box(
                     low=0,
-                    high=self.grid_size,
+                    high=self.grid_size - 1,
                     shape=(self.num_vertiports, 2),
                     dtype=np.float32,
                 ),
                 "rel_vert_velocities": Box(
-                    low=-max_velocity,
-                    high=max_velocity,
+                    low=-self.max_vel,
+                    high=self.max_vel,
                     shape=(self.num_vertiports, 2),
                     dtype=np.float32,
                 ),
             }
-        )
+        ) for i in self.drones})
         return obs_space
 
     def action_space(self, agent: int):
