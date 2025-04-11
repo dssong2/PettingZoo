@@ -506,10 +506,11 @@ class UAMToyEnvironment(ParallelEnv):
             ax.scatter(drone_positions[:, 0], drone_positions[:, 1],
                     c="blue", marker="o", label="Drones", zorder=3)
             # Plot velocity arrows for each drone.
-            for i, pos in enumerate(drone_positions):
-                vx, vy = self.drone_vel[i]
-                ax.arrow(pos[0], pos[1], vx * 0.01, vy * 0.01,
-                        head_width=2, head_length=2, fc="blue", ec="blue", zorder=4)
+            ## if want to include arrows for each drone, uncomment the following lines
+            # for i, pos in enumerate(drone_positions):
+            #     vx, vy = self.drone_vel[i]
+            #     ax.arrow(pos[0], pos[1], vx * 0.01, vy * 0.01,
+            #             head_width=2, head_length=2, fc="blue", ec="blue", zorder=4)
 
         # Move legend off to the side (outside the plot) 
         ax.legend(loc="upper left", bbox_to_anchor=(1.05, 1))
