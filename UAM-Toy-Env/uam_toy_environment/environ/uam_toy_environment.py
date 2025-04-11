@@ -287,8 +287,6 @@ class UAMToyEnvironment(ParallelEnv):
 
         self.drones = [i for i in range(self.num_drones)]
 
-        self.num_obstacles = random.randint(0, self.max_obstacles)
-
         self.time_step = 0
 
         ## Randomized vertiports or no? Or randomize vertiports in a certain area of the grid (quad 1, quad 3)
@@ -411,6 +409,10 @@ class UAMToyEnvironment(ParallelEnv):
                 + np.random.normal(0, 1)
             )
             self.drone_pos[i] = (px, py)
+
+            # if drone hits an obstacle, that drone's position becomes fixed to location
+            # FIXME stop the drone when it hits an obstacle
+
         # get next_obs
         next_obs = self._get_obs()
         self.time_step += 1  # increment time step
