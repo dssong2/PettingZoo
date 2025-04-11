@@ -401,12 +401,12 @@ class UAMToyEnvironment(ParallelEnv):
             px += (
                 0.5 * actions[i][0] * self.dt**2
                 + vx * self.dt
-                + np.random.normal(0, 1)
+                # + np.random.normal(0, 1) no noise for initial training (single agent)
             )
             py += (
                 0.5 * actions[i][1] * self.dt**2
                 + vy * self.dt
-                + np.random.normal(0, 1)
+                # + np.random.normal(0, 1) no noise for initial training (single agent)
             )
             self.drone_pos[i] = (px, py)
 
