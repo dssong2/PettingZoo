@@ -3,14 +3,15 @@ from gymnasium.spaces import Discrete, Box, Dict
 from collections import OrderedDict
 import numpy as np
 import random
+import gymnasium as gym
 
 
-class UAMToyEnvironment(ParallelEnv):
+class UAMToyEnvironment(gym.Env):
     """
     Environment in which drones begin at one site and must travel to the oppositing site without crashing into each other
     """
 
-    metadata = {"render_modes": ["human"], "name": "uam_toy_environment_v0"}
+    metadata = {"render_modes": ["human", "rgb_array"], "name": "uam_toy_environment_v0"}
 
     def __init__(
         self,
@@ -27,6 +28,7 @@ class UAMToyEnvironment(ParallelEnv):
         num_vertiports=2,
         vertiports_loc=np.array([(1, 2), (2, 4)]),
         safety_radius=5,
+        render_mode=None,
     ):
         """Create a UAMToyEnvironment environment
 
@@ -71,12 +73,13 @@ class UAMToyEnvironment(ParallelEnv):
             vertiports_loc.shape[0] == num_vertiports
         ), "Number of vertiport coordinates do not correspond to number of vertiports"
         self.safety_radius = safety_radius
+        self.render_mode = render_mode
 
         self.drones = None # can initialize in innit
         self.destinations_loc = None  # np.array of tuples (x, y), randomized for more than 2 vertiports, implement after testing 2 vertiports
         self.time_step = None
-        self.vertiport1 = None
-        self.vertiport2 = None
+        self.vertiport1 = vertiports_loc[0]
+        self.vertiport2 = vertiports_loc[1]
         self.obstacles_pos = None  # np.array of tuples (x, y)
         self.drone_pos = None  # np.array of tuples (x, y)
         self.drone_vel = None  # np.array of tuples (x, y)
@@ -112,64 +115,72 @@ class UAMToyEnvironment(ParallelEnv):
         return state
 
     def _get_obs(self):
-        """Get the current observations for all drones.
-
-        Returns
-        -------
-        dict
-            Dictionary containing the observations for all drones. The keys are the drone indices and the values are dictionaries containing the observations for each drone.
-
-        Raises
-        ------
-        RuntimeError
-            If the environment has not been initialized; call reset() first.
+        """Get the current observations.
+        
+        For multi-agent, returns a dict mapping agent keys to observations.
+        For single-agent, returns just the observation dict.
         """
-        if (
-            self.drone_pos is None
-            or self.drone_vel is None
-            or self.obstacles_pos is None
-        ):
+        if self.drone_pos is None or self.drone_vel is None or self.obstacles_pos is None:
             raise RuntimeError("Environment not initialized; call reset() first.")
 
-        obs = {}
+        # Build the inner observation dictionary for one agent.
+        def build_obs_for_agent(i):
+            if self.drone_pos is None or self.drone_vel is None or self.obstacles_pos is None:
+                raise RuntimeError("Environment not initialized; call reset() first.")
+            # Ensure the drone's position and velocity are float32
+            drone_pos = np.array(self.drone_pos[i], dtype=np.float32)
+            drone_vel = np.array(self.drone_vel[i], dtype=np.float32)
 
-        for i in range(self.num_drones):
-            drone_pos: tuple = self.drone_pos[i]
-            drone_vel: tuple = self.drone_vel[i]
-
+            # Compute relative positions and velocities for all other drones
             rel_drone_positions = []
             rel_drone_velocities = []
             for j in range(self.num_drones):
                 if j != i:
-                    rel_pos = np.array(self.drone_pos[j]) - np.array(drone_pos)
-                    rel_vel = np.array(self.drone_vel[j]) - np.array(drone_vel)
-                    rel_drone_positions.append(rel_pos)
-                    rel_drone_velocities.append(rel_vel)
+                    pos_diff = np.array(self.drone_pos[j], dtype=np.float32) - drone_pos
+                    vel_diff = np.array(self.drone_vel[j], dtype=np.float32) - drone_vel
+                    rel_drone_positions.append(pos_diff)
+                    rel_drone_velocities.append(vel_diff)
+            rel_drone_positions = np.array(rel_drone_positions, dtype=np.float32)
+            rel_drone_velocities = np.array(rel_drone_velocities, dtype=np.float32)
 
-            rel_obst_positions = [
-                np.array(obst) - np.array(drone_pos) for obst in self.obstacles_pos
-            ]
-            rel_obst_velocities = [-np.array(drone_vel) for _ in self.obstacles_pos]
+            # Compute relative positions and velocities for obstacles.
+            rel_obst_positions = []
+            rel_obst_velocities = []
+            for obst in self.obstacles_pos:
+                pos_diff = np.array(obst, dtype=np.float32) - drone_pos
+                rel_obst_positions.append(pos_diff)
+                rel_obst_velocities.append(-drone_vel)
+            rel_obst_positions = np.array(rel_obst_positions, dtype=np.float32)
+            rel_obst_velocities = np.array(rel_obst_velocities, dtype=np.float32)
 
-            rel_vert_positions = [
-                np.array(vp) - np.array(drone_pos) for vp in self.vertiports_loc
-            ]
-            rel_vert_velocities = [-np.array(drone_vel) for _ in self.vertiports_loc]
+            # Compute relative positions and velocities for vertiports.
+            rel_vert_positions = []
+            rel_vert_velocities = []
+            for vp in self.vertiports_loc:
+                pos_diff = np.array(vp, dtype=np.float32) - drone_pos
+                rel_vert_positions.append(pos_diff)
+                rel_vert_velocities.append(-drone_vel)
+            rel_vert_positions = np.array(rel_vert_positions, dtype=np.float32)
+            rel_vert_velocities = np.array(rel_vert_velocities, dtype=np.float32)
 
-            obs[i] = (
-                {  # Name of drone is simply the index, same as in drones[] defined in reset()
-                    "rel_drone_positions": np.array(rel_drone_positions),
-                    "rel_drone_velocities": np.array(rel_drone_velocities),
-                    "rel_obst_positions": np.array(rel_obst_positions),
-                    "rel_obst_velocities": np.array(rel_obst_velocities),
-                    "rel_vert_positions": np.array(rel_vert_positions),
-                    "rel_vert_velocities": np.array(rel_vert_velocities),
-                }
-            )
+            return {
+                "rel_drone_positions": rel_drone_positions,
+                "rel_drone_velocities": rel_drone_velocities,
+                "rel_obst_positions": rel_obst_positions,
+                "rel_obst_velocities": rel_obst_velocities,
+                "rel_vert_positions": rel_vert_positions,
+                "rel_vert_velocities": rel_vert_velocities,
+            }
 
-        # relative position, rel, locations of vertipoints, location of obstalces
-        # obs stored as dictionary, each drone is a key value, other part is the array e.g drone1 : rel pos, rel vel...
-        return obs
+        # If only one drone exists, return its observation directly.
+        if self.num_drones == 1:
+            return build_obs_for_agent(0)
+        else:
+            # For multi-agent, return a dict mapping agent keys (as strings) to the corresponding observation.
+            obs = {}
+            for i in range(self.num_drones):
+                obs[str(i)] = build_obs_for_agent(i)
+            return obs
 
     def _get_reward(self, agent: int, obs_initial: dict, obs_next: dict, action):
         """Compute the reward for a single drone (agent) based on the initial and next observations and the action taken.
@@ -209,14 +220,19 @@ class UAMToyEnvironment(ParallelEnv):
         ## For more than two vertiports, which vertiport does each drone go to??
 
         # Do +1 to get the correct vertiport index, since the vertiport index is 0-indexed
-        initial_pos = obs_initial[agent]["rel_vert_positions"][
+        obs_initial_single_agent = obs_initial
+        obs_next_single_agent = obs_next
+        # obs_initial_multi_agent = obs_initial[str(agent)] # use if more than one drone
+        # obs_next_multi_agent = obs_next[str(agent)] # use if more than one drone
+
+        initial_pos = obs_initial_single_agent["rel_vert_positions"][ # substitute single_agent for multi_agent if more than one drone
             self.num_vertiports - (drone_starting_vertiport + 1)
         ]
-        next_pos = obs_next[agent]["rel_vert_positions"][
+        next_pos = obs_next_single_agent["rel_vert_positions"][ # substitute single_agent for multi_agent if more than one drone
             self.num_vertiports - (drone_starting_vertiport + 1)
         ]
         # if moving closer to vertiport, positive reward, negative if moving farther away
-        reward_goal = -np.linalg.norm(next_pos) + np.linalg.norm(initial_pos)
+        reward_goal = (-np.linalg.norm(next_pos) + np.linalg.norm(initial_pos))
         agent_collision = 0.0
         obstacle_collision = 0.0
         out_of_bounds = 0.0
@@ -236,7 +252,7 @@ class UAMToyEnvironment(ParallelEnv):
                 self.obstacles_pos[i],
                 self.S_o,
             ):
-                obstacle_collision += -50.0
+                obstacle_collision += -100.0
         for drone in self.drones:
             any_out_of_bounds = (
                 self.drone_pos[drone][0] < 0
@@ -284,6 +300,7 @@ class UAMToyEnvironment(ParallelEnv):
         RuntimeError
             If a valid obstacle location cannot be found.
         """
+        super().reset(seed=seed)
 
         self.drones = [i for i in range(self.num_drones)]
 
@@ -388,6 +405,23 @@ class UAMToyEnvironment(ParallelEnv):
         # take an action
         # update state with kinematics equations for each drone
         for i in range(self.num_drones):
+
+            # i not needed as param bc agent param not used?
+            # action is np.array([x accel, y accel])
+            vx, vy = self.drone_vel[i]
+            ## ^^ use _get_state() to get the current drone vel? or can i just access the global variable
+            # np.random.normal(0, 1) adds Gaussian noise to the velocity and position
+            action_single_agent = actions
+            # action_multi_agent = actions[i] # use if more than one drone
+            vx += (action_single_agent[0] * self.dt
+                #    + np.random.normal(0, 1) # no noise for initial training (single agent)
+                   )
+            vy += (action_single_agent[1] * self.dt
+                #    + np.random.normal(0, 1) # no noise for initial training (single agent)
+                   )
+            self.drone_vel[i] = (vx, vy)
+
+            px, py = self.drone_pos[i]  # same concern as above for vel
             if self._is_overlapping(
                 self.drone_pos[i],
                 self.S_d + self.safety_radius,
@@ -399,32 +433,18 @@ class UAMToyEnvironment(ParallelEnv):
                 self.drone_vel[i] = (0.0, 0.0)
                 continue  # skip to the next drone
 
-            # i not needed as param bc agent param not used?
-            # action is np.array([x accel, y accel])
-            vx, vy = self.drone_vel[i]
-            ## ^^ use _get_state() to get the current drone vel? or can i just access the global variable
-            # np.random.normal(0, 1) adds Gaussian noise to the velocity and position
-            vx += actions[i][0] * self.dt + np.random.normal(0, 1)
-            vy += actions[i][1] * self.dt + np.random.normal(0, 1)
-            self.drone_vel[i] = (vx, vy)
-
-            px, py = self.drone_pos[i]  # same concern as above for vel
             px += (
-                0.5 * actions[i][0] * self.dt**2
+                0.5 * action_single_agent[0] * self.dt**2
                 + vx * self.dt
-                # + np.random.normal(0, 1) no noise for initial training (single agent)
+                # + np.random.normal(0, 1) # no noise for initial training (single agent)
             )
             py += (
-                0.5 * actions[i][1] * self.dt**2
+                0.5 * action_single_agent[1] * self.dt**2
                 + vy * self.dt
-                # + np.random.normal(0, 1) no noise for initial training (single agent)
+                # + np.random.normal(0, 1) # no noise for initial training (single agent)
             )
             self.drone_pos[i] = (px, py)
-
-            # if drone hits an obstacle, that drone's position becomes fixed to location
-            # FIXME stop the drone when it hits an obstacle
             
-
         # get next_obs
         next_obs = self._get_obs()
         self.time_step += 1  # increment time step
@@ -438,9 +458,15 @@ class UAMToyEnvironment(ParallelEnv):
         ## Check if all drones have reached final destination, or if all collided 
 
         all_collided = all(self.collided(drone) for drone in self.drones)
-        if (all_collided):
-            print("All drones have collided")
-        all_reached = all(tuple(self.drone_pos[drone]) == tuple(self.vertiports_loc[self.drone_vertiport[drone]]) for drone in self.drones)
+        all_reached = all(
+            self._is_overlapping(
+                self.drone_pos[drone],
+                self.S_d + self.safety_radius,
+                self.vertiports_loc[1 if self.drone_vertiport[drone] == 0 else 0],
+                self.S_v,
+            )
+            for drone in self.drones
+        )
         any_out_of_bounds = any(
             self.drone_pos[i][0] < 0
             or self.drone_pos[i][0] > self.grid_size
@@ -452,7 +478,9 @@ class UAMToyEnvironment(ParallelEnv):
 
         truncated = (self.time_step >= self.max_steps)
         info = {i: {} for i in self.drones}
-        return next_obs, rewards, terminated, truncated, info
+
+        rewards_single_agent = rewards[0]
+        return next_obs, rewards_single_agent, terminated, truncated, info
 
     ## How to account for when drones spawn at the vertiports and must be overlapping?
     def collided(self, drone: int) -> bool:
@@ -475,11 +503,11 @@ class UAMToyEnvironment(ParallelEnv):
                     return True
         # Check against obstacles.
         for obst in self.obstacles_pos:
-            if self._is_overlapping(self.drone_pos[drone], self.S_d, obst, self.S_o):
+            if self._is_overlapping(self.drone_pos[drone], self.S_d + self.safety_radius, obst, self.S_o):
                 return True
         return False
 
-    def render(self, mode="rgb_array"):
+    def render(self, mode="human"):
         """
         Render the current state of the environment as an RGB image.
         
@@ -539,7 +567,7 @@ class UAMToyEnvironment(ParallelEnv):
         plt.close(fig)
 
         # If mode is 'human', you can display the image using an image viewer.
-        if mode == "human":
+        if mode == self.render_mode:
             import cv2
             cv2.imshow("UAMToyEnvironment", cv2.cvtColor(rgb_img, cv2.COLOR_RGB2BGR))
             cv2.waitKey(1)
@@ -548,62 +576,57 @@ class UAMToyEnvironment(ParallelEnv):
 
     ## observation_space is a template of observations for each drone, right?
     ## drone parameter not used because each drone has the same set of observations?
-    def observation_space(
-        self, drone: int
-    ):  # agent is int because we define the names of drones by numbers
-        """Get the observation space for a single drone.
-
-        Returns
-        -------
-        Dict
-            Dictionary containing the observation space for a single drone.
-        """
-        assert self.drones is not None, "Environment not initialized; call reset() first."
+    @property
+    def observation_space(self):
         max_rel_drone_vel = float(2. * self.max_vel)
-
-        obs_space = Dict({ str(i): Dict(
-            {
-                "rel_drone_positions": Box(
-                    low=0,
-                    high=self.grid_size - 1,
-                    shape=(self.num_drones - 1, 2),
-                    dtype=np.float32,
-                ),
-                "rel_drone_velocities": Box(
-                    low=-max_rel_drone_vel,
-                    high=max_rel_drone_vel,
-                    shape=(self.num_drones - 1, 2),
-                    dtype=np.float32,
-                ),
-                "rel_obst_positions": Box(
-                    low=0,
-                    high=self.grid_size - 1,
-                    shape=(self.num_obstacles, 2),
-                    dtype=np.float32,
-                ),
-                "rel_obst_velocities": Box(
-                    low=-self.max_vel,
-                    high=self.max_vel,
-                    shape=(self.num_obstacles, 2),
-                    dtype=np.float32,
-                ),
-                "rel_vert_positions": Box(
-                    low=0,
-                    high=self.grid_size - 1,
-                    shape=(self.num_vertiports, 2),
-                    dtype=np.float32,
-                ),
-                "rel_vert_velocities": Box(
-                    low=-self.max_vel,
-                    high=self.max_vel,
-                    shape=(self.num_vertiports, 2),
-                    dtype=np.float32,
-                ),
-            }
-        ) for i in self.drones})
-        return obs_space
-
-    def action_space(self, agent: int):
+        inner_space = Dict({
+            "rel_drone_positions": Box(
+                low=0,
+                high=self.grid_size - 1,
+                shape=(self.num_drones - 1, 2),  # For one drone, this would be shape (0, 2)
+                dtype=np.float32,
+            ),
+            "rel_drone_velocities": Box(
+                low=-max_rel_drone_vel,
+                high=max_rel_drone_vel,
+                shape=(self.num_drones - 1, 2),
+                dtype=np.float32,
+            ),
+            "rel_obst_positions": Box(
+                low=0,
+                high=self.grid_size - 1,
+                shape=(self.num_obstacles, 2),
+                dtype=np.float32,
+            ),
+            "rel_obst_velocities": Box(
+                low=-self.max_vel,
+                high=self.max_vel,
+                shape=(self.num_obstacles, 2),
+                dtype=np.float32,
+            ),
+            "rel_vert_positions": Box(
+                low=0,
+                high=self.grid_size - 1,
+                shape=(self.num_vertiports, 2),
+                dtype=np.float32,
+            ),
+            "rel_vert_velocities": Box(
+                low=-self.max_vel,
+                high=self.max_vel,
+                shape=(self.num_vertiports, 2),
+                dtype=np.float32,
+            ),
+        })
+        
+        if self.num_drones == 1:
+            # For a single agent environment, just return the inner space.
+            return inner_space
+        else:
+            # For multiple agents, return a dictionary mapping agent keys to the inner space.
+            return Dict({str(i): inner_space for i in range(self.num_drones)})
+    
+    @property
+    def action_space(self):
         """Get the action space for a single drone.
 
         Parameters
