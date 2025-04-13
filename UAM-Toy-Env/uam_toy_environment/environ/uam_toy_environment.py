@@ -15,7 +15,7 @@ class UAMToyEnvironment(ParallelEnv):
     def __init__(
         self,
         grid_size: int = 100,
-        num_drones: int = 2,
+        num_drones: int = 1,
         S_v: int = 5,
         S_d: int = 2,
         S_o: int = 1,
@@ -293,10 +293,10 @@ class UAMToyEnvironment(ParallelEnv):
         # Currently set to random places on the graph
         # More sophisticated version, set required distance between two vertiports is at least some distance as a function of grid size
         mid_graph = (int)(self.grid_size / 2)
-        self.vertiport1 = (random.randint(0, mid_graph), random.randint(0, mid_graph))
+        self.vertiport1 = (random.randint(0 + self.S_v, mid_graph), random.randint(0 + self.S_v, mid_graph))
         self.vertiport2 = (
-            random.randint(mid_graph, self.grid_size),
-            random.randint(mid_graph, self.grid_size),
+            random.randint(mid_graph, self.grid_size - self.S_v),
+            random.randint(mid_graph, self.grid_size - self.S_v),
         )
         self.vertiports_loc = np.array(
             [self.vertiport1, self.vertiport2]
@@ -388,6 +388,17 @@ class UAMToyEnvironment(ParallelEnv):
         # take an action
         # update state with kinematics equations for each drone
         for i in range(self.num_drones):
+            if self._is_overlapping(
+                self.drone_pos[i],
+                self.S_d + self.safety_radius,
+                self.obstacles_pos[i],
+                self.S_o,
+            ):
+                # stop the drone when it hits an obstacle
+                self.drone_pos[i] = (px, py)
+                self.drone_vel[i] = (0.0, 0.0)
+                continue  # skip to the next drone
+
             # i not needed as param bc agent param not used?
             # action is np.array([x accel, y accel])
             vx, vy = self.drone_vel[i]
@@ -412,6 +423,7 @@ class UAMToyEnvironment(ParallelEnv):
 
             # if drone hits an obstacle, that drone's position becomes fixed to location
             # FIXME stop the drone when it hits an obstacle
+            
 
         # get next_obs
         next_obs = self._get_obs()
