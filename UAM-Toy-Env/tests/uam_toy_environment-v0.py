@@ -4,6 +4,7 @@ import numpy as np
 import imageio
 import gymnasium as gym
 from stable_baselines3 import A2C
+from stable_baselines3 import PPO
 
 # Ensure the UAMToyEnvironment module is accessible.
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -54,36 +55,42 @@ def test_learn():
     )
     # Create the environment instance.
     print("Here 1!")
-    env = gym.make("UAMToyEnvironment-v0", render_mode="rgb_array")
+    env = gym.make("UAMToyEnvironment-v0", render_mode="rgb_array", num_obstacles=1)
     env = gym.wrappers.FlattenObservation(env)
     obs, info = env.reset()
     print("Here 2!")
-    model = A2C(
+    model_A2C = A2C(
         "MlpPolicy",
         env,
         verbose=1,
         tensorboard_log="./a2c_tensorboard/",
     )
+    model_PPO1 = PPO(
+        "MlpPolicy",
+        env,
+        verbose=1,
+        tensorboard_log="./ppo_tensorboard/",
+    )
     # Train the model for a specified number of timesteps.
-    model.learn(total_timesteps=100000, tb_log_name="test run", progress_bar=True)
+    model_A2C.learn(total_timesteps=100000, tb_log_name="test run", progress_bar=True)
     # model.learn(total_timesteps=100000, tb_log_name="second_run", reset_num_timesteps=False, progress_bar=True)
     # model.learn(total_timesteps=100000, tb_log_name="third_run", reset_num_timesteps=False, progress_bar=True)
     # Save the model.
-    model.save("a2c_uam_toy")
-    del model  # delete trained model to demonstrate loading
+    model_A2C.save("uam_toy")
+    del model_A2C  # delete trained model to demonstrate loading
 
     # Load the model.
-    model = A2C.load("a2c_uam_toy")
+    model_A2C = PPO.load("uam_toy")
     # Manually set the environment after loading.
-    model.set_env(env)
+    model_A2C.set_env(env)
     print("Model trained and saved successfully.")
 
-    vec_env = model.get_env()
+    vec_env = model_A2C.get_env()
     if vec_env is None:
         print("vec_env is still None; check that the environment was properly attached using set_env().")
     obs = vec_env.reset()
     for i in range(1000):
-        action, _states = model.predict(obs, deterministic=True)
+        action, _states = model_A2C.predict(obs, deterministic=True)
         obs, rewards, dones, info = vec_env.step(action)
         vec_env.render("human")
     print("DONE!!")

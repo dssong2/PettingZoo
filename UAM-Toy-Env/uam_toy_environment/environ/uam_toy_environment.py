@@ -213,6 +213,7 @@ class UAMToyEnvironment(gym.Env):
             or self.num_drones is None
             or self.drone_vertiport is None
             or self.drones is None
+            or self.time_step is None
         ):
             raise RuntimeError("Environment not initialized; call reset() first.")
         ## vv WHY IS IT AN ARRAY OF TUPLE?? does this actually just work??
@@ -232,10 +233,13 @@ class UAMToyEnvironment(gym.Env):
             self.num_vertiports - (drone_starting_vertiport + 1)
         ]
         # if moving closer to vertiport, positive reward, negative if moving farther away
-        reward_goal = (-np.linalg.norm(next_pos) + np.linalg.norm(initial_pos))
+        reward_goal = 1. * (-np.linalg.norm(next_pos) + np.linalg.norm(initial_pos))**3
+
         agent_collision = 0.0
         obstacle_collision = 0.0
         out_of_bounds = 0.0
+        vertiport_reached = 0.0
+        time = 0.0
         for i in range(self.num_drones):
             if i != agent:
                 if self._is_overlapping(
@@ -261,7 +265,20 @@ class UAMToyEnvironment(gym.Env):
                 or self.drone_pos[drone][1] > self.grid_size)
             if any_out_of_bounds:
                 out_of_bounds += -100.0
-        reward = reward_goal + agent_collision + obstacle_collision + out_of_bounds
+        for drone in self.drones:
+            if self._is_overlapping(
+                self.drone_pos[drone],
+                self.S_d,
+                self.vertiports_loc[1 if self.drone_vertiport[drone] == 0 else 0],
+                0,
+            ):
+            # if all(self.drone_pos[drone] == self.vertiports_loc[1 if self.drone_vertiport[drone] == 0 else 0]):
+                vertiport_reached += 1.0e3
+                time += (self.max_steps - self.time_step) * 1.0e4
+                print("Reached vertiport!")
+        if self.time_step >= self.max_steps:
+            time += -1000.0
+        reward = reward_goal + agent_collision + obstacle_collision + out_of_bounds + vertiport_reached + time
 
         return reward
 
@@ -424,7 +441,7 @@ class UAMToyEnvironment(gym.Env):
             px, py = self.drone_pos[i]  # same concern as above for vel
             if self._is_overlapping(
                 self.drone_pos[i],
-                self.S_d + self.safety_radius,
+                self.S_d,
                 self.obstacles_pos[i],
                 self.S_o,
             ):
@@ -458,15 +475,23 @@ class UAMToyEnvironment(gym.Env):
         ## Check if all drones have reached final destination, or if all collided 
 
         all_collided = all(self.collided(drone) for drone in self.drones)
-        all_reached = all(
-            self._is_overlapping(
-                self.drone_pos[drone],
-                self.S_d + self.safety_radius,
-                self.vertiports_loc[1 if self.drone_vertiport[drone] == 0 else 0],
-                self.S_v,
-            )
-            for drone in self.drones
-        )
+        # all_reached = all(
+        #     self._is_overlapping(
+        #         self.drone_pos[drone],
+        #         self.S_d,
+        #         self.vertiports_loc[1 if self.drone_vertiport[drone] == 0 else 0],
+        #         self.S_v,
+        #     )
+        #     for drone in self.drones
+        # )
+        all_reached = False
+        if self._is_overlapping(
+                self.drone_pos[0],
+                self.S_d,
+                self.vertiports_loc[1 if self.drone_vertiport[0] == 0 else 0],
+                0,
+            ):
+            all_reached = True
         any_out_of_bounds = any(
             self.drone_pos[i][0] < 0
             or self.drone_pos[i][0] > self.grid_size
@@ -498,12 +523,12 @@ class UAMToyEnvironment(gym.Env):
         for other in self.drones:
             if drone != other:
                 if (self._is_overlapping(self.drone_pos[drone], self.S_d, self.drone_pos[other], self.S_d)
-                    and not self._is_overlapping(self.drone_pos[drone], self.S_d + self.safety_radius, self.vertiport1, self.S_v)
-                    and not self._is_overlapping(self.drone_pos[drone], self.S_d + self.safety_radius, self.vertiport2, self.S_v)):
+                    and not self._is_overlapping(self.drone_pos[drone], self.S_d, self.vertiport1, self.S_v)
+                    and not self._is_overlapping(self.drone_pos[drone], self.S_d, self.vertiport2, self.S_v)):
                     return True
         # Check against obstacles.
         for obst in self.obstacles_pos:
-            if self._is_overlapping(self.drone_pos[drone], self.S_d + self.safety_radius, obst, self.S_o):
+            if self._is_overlapping(self.drone_pos[drone], self.S_d, obst, self.S_o):
                 return True
         return False
 
@@ -581,8 +606,8 @@ class UAMToyEnvironment(gym.Env):
         max_rel_drone_vel = float(2. * self.max_vel)
         inner_space = Dict({
             "rel_drone_positions": Box(
-                low=0,
-                high=self.grid_size - 1,
+                low=-self.grid_size,
+                high=self.grid_size,
                 shape=(self.num_drones - 1, 2),  # For one drone, this would be shape (0, 2)
                 dtype=np.float32,
             ),
@@ -593,8 +618,8 @@ class UAMToyEnvironment(gym.Env):
                 dtype=np.float32,
             ),
             "rel_obst_positions": Box(
-                low=0,
-                high=self.grid_size - 1,
+                low=-self.grid_size,
+                high=self.grid_size,
                 shape=(self.num_obstacles, 2),
                 dtype=np.float32,
             ),
@@ -605,8 +630,8 @@ class UAMToyEnvironment(gym.Env):
                 dtype=np.float32,
             ),
             "rel_vert_positions": Box(
-                low=0,
-                high=self.grid_size - 1,
+                low=-self.grid_size,
+                high=self.grid_size,
                 shape=(self.num_vertiports, 2),
                 dtype=np.float32,
             ),
