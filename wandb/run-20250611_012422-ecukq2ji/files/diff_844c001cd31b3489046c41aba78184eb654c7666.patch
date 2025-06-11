@@ -1,0 +1,584 @@
+diff --git a/UAM Videos and Images/Test 1.mov b/UAM-Toy-Env/Data/UAM Videos and Images/Test 1.mov
+similarity index 100%
+rename from UAM Videos and Images/Test 1.mov
+rename to UAM-Toy-Env/Data/UAM Videos and Images/Test 1.mov
+diff --git a/UAM Videos and Images/Test 1.mp4 b/UAM-Toy-Env/Data/UAM Videos and Images/Test 1.mp4
+similarity index 100%
+rename from UAM Videos and Images/Test 1.mp4
+rename to UAM-Toy-Env/Data/UAM Videos and Images/Test 1.mp4
+diff --git a/UAM Videos and Images/Test 1.png b/UAM-Toy-Env/Data/UAM Videos and Images/Test 1.png
+similarity index 100%
+rename from UAM Videos and Images/Test 1.png
+rename to UAM-Toy-Env/Data/UAM Videos and Images/Test 1.png
+diff --git a/UAM Videos and Images/test.gif b/UAM-Toy-Env/Data/UAM Videos and Images/test.gif
+similarity index 100%
+rename from UAM Videos and Images/test.gif
+rename to UAM-Toy-Env/Data/UAM Videos and Images/test.gif
+diff --git a/UAM-Toy-Env/eval.py b/UAM-Toy-Env/eval.py
+new file mode 100644
+index 00000000..9ea91eb4
+--- /dev/null
++++ b/UAM-Toy-Env/eval.py
+@@ -0,0 +1,53 @@
++import sys
++import os
++import numpy as np
++import imageio
++import gymnasium as gym
++from stable_baselines3 import A2C
++from stable_baselines3 import PPO
++from stable_baselines3 import SAC
++from stable_baselines3.common.vec_env import DummyVecEnv, VecNormalize
++
++# Ensure the UAMToyEnvironment module is accessible.
++sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
++from uam_toy_environment.environ.uam_toy_environment import UAMToyEnvironment
++
++gym.register(
++    id="UAMToyEnvironment-v0",
++    entry_point="uam_toy_environment.environ.uam_toy_environment:UAMToyEnvironment",
++    max_episode_steps=200,
++)
++def make_env():
++    env = gym.make("UAMToyEnvironment-v0", render_mode="rgb_array", num_obstacles=1)
++    env = gym.wrappers.FlattenObservation(env)
++    return env
++
++env = DummyVecEnv([make_env])
++env = VecNormalize(env, norm_obs=True, norm_reward=True)
++
++# env = make_env()
++env.training = False
++env.norm_reward = False
++
++# # Load the model.
++# model_SAC = SAC.load("uam_toy")
++# # Manually set the environment after loading.
++# model_SAC.set_env(env)
++# print("Model trained and saved successfully.")
++
++# Load the model.
++model_PPO1 = PPO.load("uam_toy")
++# Manually set the environment after loading.
++model_PPO1.set_env(env)
++print("Model trained and saved successfully.")
++
++vec_env = model_PPO1.get_env()
++if vec_env is None:
++    print("vec_env is still None; check that the environment was properly attached using set_env().")
++obs = vec_env.reset()
++for i in range(1000):
++    action, _states = model_PPO1.predict(obs, deterministic=False)
++    obs, rewards, dones, info = vec_env.step(action)
++    vec_env.render("human")
++print("DONE!!")
++
+diff --git a/UAM-Toy-Env/tests/uam_toy_environment-v0.py b/UAM-Toy-Env/tests/uam_toy_environment-v0.py
+index 723e73a4..c871cab8 100644
+--- a/UAM-Toy-Env/tests/uam_toy_environment-v0.py
++++ b/UAM-Toy-Env/tests/uam_toy_environment-v0.py
+@@ -5,6 +5,7 @@ import imageio
+ import gymnasium as gym
+ from stable_baselines3 import A2C
+ from stable_baselines3 import PPO
++from stable_baselines3 import SAC
+ 
+ # Ensure the UAMToyEnvironment module is accessible.
+ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+@@ -44,54 +45,3 @@ def test_uam() -> None:
+     # Save the collected frames as a GIF.
+     imageio.mimsave("test.gif", frames, duration=0.5)
+     print("Test GIF saved as test.gif")
+-
+-def test_learn():
+-    """Test the learning process of the UAMToyEnvironment."""
+-    print("Here 0!")
+-    gym.register(
+-        id="UAMToyEnvironment-v0",
+-        entry_point="uam_toy_environment.environ.uam_toy_environment:UAMToyEnvironment",
+-        max_episode_steps=100,
+-    )
+-    # Create the environment instance.
+-    print("Here 1!")
+-    env = gym.make("UAMToyEnvironment-v0", render_mode="rgb_array", num_obstacles=1)
+-    env = gym.wrappers.FlattenObservation(env)
+-    obs, info = env.reset()
+-    print("Here 2!")
+-    model_A2C = A2C(
+-        "MlpPolicy",
+-        env,
+-        verbose=1,
+-        tensorboard_log="./a2c_tensorboard/",
+-    )
+-    model_PPO1 = PPO(
+-        "MlpPolicy",
+-        env,
+-        verbose=1,
+-        tensorboard_log="./ppo_tensorboard/",
+-    )
+-    # Train the model for a specified number of timesteps.
+-    model_A2C.learn(total_timesteps=100000, tb_log_name="test run", progress_bar=True)
+-    # model.learn(total_timesteps=100000, tb_log_name="second_run", reset_num_timesteps=False, progress_bar=True)
+-    # model.learn(total_timesteps=100000, tb_log_name="third_run", reset_num_timesteps=False, progress_bar=True)
+-    # Save the model.
+-    model_A2C.save("uam_toy")
+-    del model_A2C  # delete trained model to demonstrate loading
+-
+-    # Load the model.
+-    model_A2C = PPO.load("uam_toy")
+-    # Manually set the environment after loading.
+-    model_A2C.set_env(env)
+-    print("Model trained and saved successfully.")
+-
+-    vec_env = model_A2C.get_env()
+-    if vec_env is None:
+-        print("vec_env is still None; check that the environment was properly attached using set_env().")
+-    obs = vec_env.reset()
+-    for i in range(1000):
+-        action, _states = model_A2C.predict(obs, deterministic=True)
+-        obs, rewards, dones, info = vec_env.step(action)
+-        vec_env.render("human")
+-    print("DONE!!")
+-test_learn()
+diff --git a/UAM-Toy-Env/train.py b/UAM-Toy-Env/train.py
+new file mode 100644
+index 00000000..9e866bb3
+--- /dev/null
++++ b/UAM-Toy-Env/train.py
+@@ -0,0 +1,78 @@
++import sys
++import os
++import numpy as np
++import imageio
++import gymnasium as gym
++from stable_baselines3 import A2C
++from stable_baselines3 import PPO
++from stable_baselines3 import SAC
++from stable_baselines3.common.vec_env import DummyVecEnv, VecNormalize
++from stable_baselines3.common.monitor import Monitor
++import wandb
++from wandb.integration.sb3 import WandbCallback
++
++# Ensure the UAMToyEnvironment module is accessible.
++sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
++from uam_toy_environment.environ.uam_toy_environment import UAMToyEnvironment
++
++total_timesteps = 1000000  # Define the total timesteps for training.
++# Initialize WandB for logging.
++wandb.init(
++    project="uam-toy-project",  # Change this to your project name
++    name="uam-toy-run",  # Change this to your run name
++    config={"total_timesteps": total_timesteps, "algo": "PPO"},
++    sync_tensorboard=True,  # Automatically sync TensorBoard logs
++    monitor_gym=True,       # Monitor Gym environments
++    save_code=True,
++)
++
++# Register the UAMToyEnvironment.
++gym.register(
++    id="UAMToyEnvironment-v0",
++    entry_point="uam_toy_environment.environ.uam_toy_environment:UAMToyEnvironment",
++    max_episode_steps=200,
++)
++# Create the environment instance.
++print("Here 1!")
++def make_env():
++    env = gym.make("UAMToyEnvironment-v0", render_mode="rgb_array", num_obstacles=1)
++    env = Monitor(env)  # Wrap the environment with Monitor for logging.
++    env = gym.wrappers.FlattenObservation(env)
++    return env
++
++env = DummyVecEnv([make_env])
++env = VecNormalize(env, norm_obs=True, norm_reward=True)
++
++# env = make_env()
++
++model_A2C1 = A2C(
++    "MlpPolicy",
++    env,
++    verbose=1,
++    tensorboard_log="./a2c_tensorboard/",
++)
++model_PPO1 = PPO(
++    "MlpPolicy",
++    env,
++    verbose=1,
++    tensorboard_log="./ppo_tensorboard/",
++)
++# model_SAC = SAC( # try this
++#     "MlpPolicy",
++#     env,
++#     verbose=1,
++#     tensorboard_log="./sac_tensorboard/",
++# )
++# Train the model for a specified number of timesteps.
++model_PPO1.learn(
++    total_timesteps=total_timesteps,
++    tb_log_name="test run",
++    progress_bar=True,
++    callback=WandbCallback()
++)
++# model.learn(total_timesteps=100000, tb_log_name="second_run", reset_num_timesteps=False, progress_bar=True)
++# model.learn(total_timesteps=100000, tb_log_name="third_run", reset_num_timesteps=False, progress_bar=True)
++# Save the model.
++model_PPO1.save("uam_toy")
++
++# env.save("vec_normalize.pkl")
+\ No newline at end of file
+diff --git a/UAM-Toy-Env/uam_toy_environment/environ/uam_toy_environment.py b/UAM-Toy-Env/uam_toy_environment/environ/uam_toy_environment.py
+index 452c67ca..bcb64924 100644
+--- a/UAM-Toy-Env/uam_toy_environment/environ/uam_toy_environment.py
++++ b/UAM-Toy-Env/uam_toy_environment/environ/uam_toy_environment.py
+@@ -22,7 +22,7 @@ class UAMToyEnvironment(gym.Env):
+         S_o: int = 1,
+         max_accel: float = 5.0,
+         max_vel : float = 500.0,
+-        max_steps: int = 100,
++        max_steps: int = 200,
+         max_obstacles=10,
+         num_obstacles=10,
+         num_vertiports=2,
+@@ -140,6 +140,7 @@ class UAMToyEnvironment(gym.Env):
+                     vel_diff = np.array(self.drone_vel[j], dtype=np.float32) - drone_vel
+                     rel_drone_positions.append(pos_diff)
+                     rel_drone_velocities.append(vel_diff)
++                    
+             rel_drone_positions = np.array(rel_drone_positions, dtype=np.float32)
+             rel_drone_velocities = np.array(rel_drone_velocities, dtype=np.float32)
+ 
+@@ -164,17 +165,21 @@ class UAMToyEnvironment(gym.Env):
+             rel_vert_velocities = np.array(rel_vert_velocities, dtype=np.float32)
+ 
+             return {
++                "drone_pos": drone_pos,
++                "drone_vel": drone_vel,
+                 "rel_drone_positions": rel_drone_positions,
+                 "rel_drone_velocities": rel_drone_velocities,
+                 "rel_obst_positions": rel_obst_positions,
+-                "rel_obst_velocities": rel_obst_velocities,
++                # "rel_obst_velocities": rel_obst_velocities,
+                 "rel_vert_positions": rel_vert_positions,
+-                "rel_vert_velocities": rel_vert_velocities,
++                # "rel_vert_velocities": rel_vert_velocities,
+             }
+ 
+         # If only one drone exists, return its observation directly.
+         if self.num_drones == 1:
+-            return build_obs_for_agent(0)
++            obs_dict = build_obs_for_agent(0)
++            flat_obs = np.concatenate([obs_dict[key].flatten() for key in sorted(obs_dict.keys())]).astype(np.float32)
++            return obs_dict, flat_obs
+         else:
+             # For multi-agent, return a dict mapping agent keys (as strings) to the corresponding observation.
+             obs = {}
+@@ -226,14 +231,18 @@ class UAMToyEnvironment(gym.Env):
+         # obs_initial_multi_agent = obs_initial[str(agent)] # use if more than one drone
+         # obs_next_multi_agent = obs_next[str(agent)] # use if more than one drone
+ 
+-        initial_pos = obs_initial_single_agent["rel_vert_positions"][ # substitute single_agent for multi_agent if more than one drone
++        initial_dist = obs_initial_single_agent["rel_vert_positions"][ # substitute single_agent for multi_agent if more than one drone
+             self.num_vertiports - (drone_starting_vertiport + 1)
+         ]
+-        next_pos = obs_next_single_agent["rel_vert_positions"][ # substitute single_agent for multi_agent if more than one drone
++        next_dist = obs_next_single_agent["rel_vert_positions"][ # substitute single_agent for multi_agent if more than one drone
+             self.num_vertiports - (drone_starting_vertiport + 1)
+         ]
+         # if moving closer to vertiport, positive reward, negative if moving farther away
+-        reward_goal = 1. * (-np.linalg.norm(next_pos) + np.linalg.norm(initial_pos))**3
++        reward_goal = (10. * (-np.linalg.norm(next_dist) + np.linalg.norm(initial_dist))) / self.grid_size
++        # reward_goal = -np.linalg.norm(next_dist)
++
++        # kp, ki, kd = 1, 1, 1 # Proportional, integral, and derivative gains for the reward function
++        # reward_goal = -kp * np.linalg.norm(initial_dist) - ki * np.linalg.norm(next_dist - initial_dist) * self.dt - kd * np.linalg.norm(next_dist - initial_dist) / self.dt
+ 
+         agent_collision = 0.0
+         obstacle_collision = 0.0
+@@ -256,7 +265,7 @@ class UAMToyEnvironment(gym.Env):
+                 self.obstacles_pos[i],
+                 self.S_o,
+             ):
+-                obstacle_collision += -100.0
++                obstacle_collision += -5.0
+         for drone in self.drones:
+             any_out_of_bounds = (
+                 self.drone_pos[drone][0] < 0
+@@ -264,21 +273,32 @@ class UAMToyEnvironment(gym.Env):
+                 or self.drone_pos[drone][1] < 0
+                 or self.drone_pos[drone][1] > self.grid_size)
+             if any_out_of_bounds:
+-                out_of_bounds += -100.0
++                out_of_bounds += -5.0
+         for drone in self.drones:
+             if self._is_overlapping(
+                 self.drone_pos[drone],
+                 self.S_d,
+                 self.vertiports_loc[1 if self.drone_vertiport[drone] == 0 else 0],
+-                0,
++                self.S_v + 2,
+             ):
+             # if all(self.drone_pos[drone] == self.vertiports_loc[1 if self.drone_vertiport[drone] == 0 else 0]):
+-                vertiport_reached += 1.0e3
+-                time += (self.max_steps - self.time_step) * 1.0e4
++                vertiport_reached += 50.0
++                # time += (self.max_steps - self.time_step) * 1.0e4
++            if self._is_overlapping(
++                self.drone_pos[drone],
++                self.S_d,
++                self.vertiports_loc[1 if self.drone_vertiport[drone] == 0 else 0],
++                0.5 * self.S_v,
++            ):
++                vertiport_reached += 50.0 * 0
++                # time += (self.max_steps - self.time_step) * 1.0e4
+                 print("Reached vertiport!")
+-        if self.time_step >= self.max_steps:
+-            time += -1000.0
+-        reward = reward_goal + agent_collision + obstacle_collision + out_of_bounds + vertiport_reached + time
++            
++        # if self.time_step >= self.max_steps:
++        #     time += -1000.0
++
++
++        reward = 1 * reward_goal + agent_collision + obstacle_collision + out_of_bounds + vertiport_reached + time
+ 
+         return reward
+ 
+@@ -376,10 +396,10 @@ class UAMToyEnvironment(gym.Env):
+             self.drone_vel[i] = (0.0, 0.0)  # Set initial velocity to 0
+ 
+         # Implement _get_obs()
+-        drone_obs = self._get_obs()
++        drone_obs, flat_drone_obs = self._get_obs()
+         # obs = OrderedDict({f"{a}": drone_obs[a] for a in self.drones}) do I need this line if my key is already defined in the dictionary drone_obs?
+         info = {}
+-        return drone_obs, info
++        return flat_drone_obs, info
+ 
+     def step(self, actions):
+         """Take a step in the environment.
+@@ -418,10 +438,11 @@ class UAMToyEnvironment(gym.Env):
+         ):
+             raise RuntimeError("Environment not initialized; call reset() first.")
+ 
+-        current_obs = self._get_obs()
++        current_obs, flat_current_obs = self._get_obs()
+         # take an action
+         # update state with kinematics equations for each drone
+         for i in range(self.num_drones):
++            #TODO: stop the drone at boundary, position stays same, velocity same
+ 
+             # i not needed as param bc agent param not used?
+             # action is np.array([x accel, y accel])
+@@ -463,7 +484,7 @@ class UAMToyEnvironment(gym.Env):
+             self.drone_pos[i] = (px, py)
+             
+         # get next_obs
+-        next_obs = self._get_obs()
++        next_obs, flat_next_obs = self._get_obs()
+         self.time_step += 1  # increment time step
+ 
+         # compute reward using obs and next_obs
+@@ -489,7 +510,7 @@ class UAMToyEnvironment(gym.Env):
+                 self.drone_pos[0],
+                 self.S_d,
+                 self.vertiports_loc[1 if self.drone_vertiport[0] == 0 else 0],
+-                0,
++                0 + 0.5 * self.S_v, # add this change to the new test file
+             ):
+             all_reached = True
+         any_out_of_bounds = any(
+@@ -505,7 +526,7 @@ class UAMToyEnvironment(gym.Env):
+         info = {i: {} for i in self.drones}
+ 
+         rewards_single_agent = rewards[0]
+-        return next_obs, rewards_single_agent, terminated, truncated, info
++        return flat_next_obs, rewards_single_agent, terminated, truncated, info
+ 
+     ## How to account for when drones spawn at the vertiports and must be overlapping?
+     def collided(self, drone: int) -> bool:
+@@ -605,6 +626,18 @@ class UAMToyEnvironment(gym.Env):
+     def observation_space(self):
+         max_rel_drone_vel = float(2. * self.max_vel)
+         inner_space = Dict({
++            "drone_pos": Box(
++                low=-self.grid_size,
++                high=self.grid_size,
++                shape=(2,),
++                dtype=np.float32,
++            ),
++            "drone_vel": Box(
++                low=-self.max_vel,
++                high=self.max_vel,
++                shape=(2,),
++                dtype=np.float32,
++            ),
+             "rel_drone_positions": Box(
+                 low=-self.grid_size,
+                 high=self.grid_size,
+@@ -623,29 +656,31 @@ class UAMToyEnvironment(gym.Env):
+                 shape=(self.num_obstacles, 2),
+                 dtype=np.float32,
+             ),
+-            "rel_obst_velocities": Box(
+-                low=-self.max_vel,
+-                high=self.max_vel,
+-                shape=(self.num_obstacles, 2),
+-                dtype=np.float32,
+-            ),
++            # "rel_obst_velocities": Box(
++            #     low=-self.max_vel,
++            #     high=self.max_vel,
++            #     shape=(self.num_obstacles, 2),
++            #     dtype=np.float32,
++            # ),
+             "rel_vert_positions": Box(
+                 low=-self.grid_size,
+                 high=self.grid_size,
+                 shape=(self.num_vertiports, 2),
+                 dtype=np.float32,
+             ),
+-            "rel_vert_velocities": Box(
+-                low=-self.max_vel,
+-                high=self.max_vel,
+-                shape=(self.num_vertiports, 2),
+-                dtype=np.float32,
+-            ),
++            # "rel_vert_velocities": Box(
++            #     low=-self.max_vel,
++            #     high=self.max_vel,
++            #     shape=(self.num_vertiports, 2),
++            #     dtype=np.float32,
++            # ),
+         })
+         
+         if self.num_drones == 1:
+             # For a single agent environment, just return the inner space.
+-            return inner_space
++            # In observation_space:
++            obs_size = sum(int(np.prod(tuple(space.shape))) for space in inner_space.spaces.values() if space.shape is not None)
++            return Box(low=-np.inf, high=np.inf, shape=(obs_size,), dtype=np.float32)
+         else:
+             # For multiple agents, return a dictionary mapping agent keys to the inner space.
+             return Dict({str(i): inner_space for i in range(self.num_drones)})
+diff --git a/a2c_tensorboard/continued_run_0/events.out.tfevents.1746130592.wirelessprv-10-193-255-26.near.illinois.edu.73801.0 b/a2c_tensorboard/continued_run_0/events.out.tfevents.1746130592.wirelessprv-10-193-255-26.near.illinois.edu.73801.0
+new file mode 100644
+index 00000000..1d5f2607
+Binary files /dev/null and b/a2c_tensorboard/continued_run_0/events.out.tfevents.1746130592.wirelessprv-10-193-255-26.near.illinois.edu.73801.0 differ
+diff --git a/a2c_tensorboard/test run_1/events.out.tfevents.1744789314.Daniels-MacBook-Pro.local.86644.0 b/a2c_tensorboard/test run_1/events.out.tfevents.1744789314.Daniels-MacBook-Pro.local.86644.0
+deleted file mode 100644
+index 33f97d28..00000000
+Binary files a/a2c_tensorboard/test run_1/events.out.tfevents.1744789314.Daniels-MacBook-Pro.local.86644.0 and /dev/null differ
+diff --git a/a2c_tensorboard/test run_1/events.out.tfevents.1745526938.wirelessprv-10-193-255-26.near.illinois.edu.51501.0 b/a2c_tensorboard/test run_1/events.out.tfevents.1745526938.wirelessprv-10-193-255-26.near.illinois.edu.51501.0
+new file mode 100644
+index 00000000..028dbbf2
+Binary files /dev/null and b/a2c_tensorboard/test run_1/events.out.tfevents.1745526938.wirelessprv-10-193-255-26.near.illinois.edu.51501.0 differ
+diff --git a/a2c_tensorboard/test run_10/events.out.tfevents.1746131246.wirelessprv-10-193-255-26.near.illinois.edu.76427.0 b/a2c_tensorboard/test run_10/events.out.tfevents.1746131246.wirelessprv-10-193-255-26.near.illinois.edu.76427.0
+new file mode 100644
+index 00000000..ef55213e
+Binary files /dev/null and b/a2c_tensorboard/test run_10/events.out.tfevents.1746131246.wirelessprv-10-193-255-26.near.illinois.edu.76427.0 differ
+diff --git a/a2c_tensorboard/test run_11/events.out.tfevents.1746132377.wirelessprv-10-193-255-26.near.illinois.edu.78071.0 b/a2c_tensorboard/test run_11/events.out.tfevents.1746132377.wirelessprv-10-193-255-26.near.illinois.edu.78071.0
+new file mode 100644
+index 00000000..3b0df62c
+Binary files /dev/null and b/a2c_tensorboard/test run_11/events.out.tfevents.1746132377.wirelessprv-10-193-255-26.near.illinois.edu.78071.0 differ
+diff --git a/a2c_tensorboard/test run_2/events.out.tfevents.1744789430.Daniels-MacBook-Pro.local.87013.0 b/a2c_tensorboard/test run_2/events.out.tfevents.1744789430.Daniels-MacBook-Pro.local.87013.0
+deleted file mode 100644
+index 45e3844c..00000000
+Binary files a/a2c_tensorboard/test run_2/events.out.tfevents.1744789430.Daniels-MacBook-Pro.local.87013.0 and /dev/null differ
+diff --git a/a2c_tensorboard/test run_2/events.out.tfevents.1745527579.wirelessprv-10-193-255-26.near.illinois.edu.52359.0 b/a2c_tensorboard/test run_2/events.out.tfevents.1745527579.wirelessprv-10-193-255-26.near.illinois.edu.52359.0
+new file mode 100644
+index 00000000..12a6bbfc
+Binary files /dev/null and b/a2c_tensorboard/test run_2/events.out.tfevents.1745527579.wirelessprv-10-193-255-26.near.illinois.edu.52359.0 differ
+diff --git a/a2c_tensorboard/test run_3/events.out.tfevents.1744789542.Daniels-MacBook-Pro.local.87381.0 b/a2c_tensorboard/test run_3/events.out.tfevents.1744789542.Daniels-MacBook-Pro.local.87381.0
+deleted file mode 100644
+index 40b39758..00000000
+Binary files a/a2c_tensorboard/test run_3/events.out.tfevents.1744789542.Daniels-MacBook-Pro.local.87381.0 and /dev/null differ
+diff --git a/a2c_tensorboard/test run_3/events.out.tfevents.1745527752.wirelessprv-10-193-255-26.near.illinois.edu.53281.0 b/a2c_tensorboard/test run_3/events.out.tfevents.1745527752.wirelessprv-10-193-255-26.near.illinois.edu.53281.0
+new file mode 100644
+index 00000000..f54af295
+Binary files /dev/null and b/a2c_tensorboard/test run_3/events.out.tfevents.1745527752.wirelessprv-10-193-255-26.near.illinois.edu.53281.0 differ
+diff --git a/a2c_tensorboard/test run_4/events.out.tfevents.1745527977.wirelessprv-10-193-255-26.near.illinois.edu.53952.0 b/a2c_tensorboard/test run_4/events.out.tfevents.1745527977.wirelessprv-10-193-255-26.near.illinois.edu.53952.0
+new file mode 100644
+index 00000000..091da34e
+Binary files /dev/null and b/a2c_tensorboard/test run_4/events.out.tfevents.1745527977.wirelessprv-10-193-255-26.near.illinois.edu.53952.0 differ
+diff --git a/a2c_tensorboard/test run_5/events.out.tfevents.1745528984.wirelessprv-10-193-255-26.near.illinois.edu.54767.0 b/a2c_tensorboard/test run_5/events.out.tfevents.1745528984.wirelessprv-10-193-255-26.near.illinois.edu.54767.0
+new file mode 100644
+index 00000000..2f77c315
+Binary files /dev/null and b/a2c_tensorboard/test run_5/events.out.tfevents.1745528984.wirelessprv-10-193-255-26.near.illinois.edu.54767.0 differ
+diff --git a/a2c_tensorboard/test run_6/events.out.tfevents.1746130049.wirelessprv-10-193-255-26.near.illinois.edu.72949.0 b/a2c_tensorboard/test run_6/events.out.tfevents.1746130049.wirelessprv-10-193-255-26.near.illinois.edu.72949.0
+new file mode 100644
+index 00000000..35ef26ab
+Binary files /dev/null and b/a2c_tensorboard/test run_6/events.out.tfevents.1746130049.wirelessprv-10-193-255-26.near.illinois.edu.72949.0 differ
+diff --git a/a2c_tensorboard/test run_7/events.out.tfevents.1746130682.wirelessprv-10-193-255-26.near.illinois.edu.74395.0 b/a2c_tensorboard/test run_7/events.out.tfevents.1746130682.wirelessprv-10-193-255-26.near.illinois.edu.74395.0
+new file mode 100644
+index 00000000..31f65999
+Binary files /dev/null and b/a2c_tensorboard/test run_7/events.out.tfevents.1746130682.wirelessprv-10-193-255-26.near.illinois.edu.74395.0 differ
+diff --git a/a2c_tensorboard/test run_8/events.out.tfevents.1746130871.wirelessprv-10-193-255-26.near.illinois.edu.75101.0 b/a2c_tensorboard/test run_8/events.out.tfevents.1746130871.wirelessprv-10-193-255-26.near.illinois.edu.75101.0
+new file mode 100644
+index 00000000..b547de81
+Binary files /dev/null and b/a2c_tensorboard/test run_8/events.out.tfevents.1746130871.wirelessprv-10-193-255-26.near.illinois.edu.75101.0 differ
+diff --git a/a2c_tensorboard/test run_9/events.out.tfevents.1746131109.wirelessprv-10-193-255-26.near.illinois.edu.75793.0 b/a2c_tensorboard/test run_9/events.out.tfevents.1746131109.wirelessprv-10-193-255-26.near.illinois.edu.75793.0
+new file mode 100644
+index 00000000..a65ddfab
+Binary files /dev/null and b/a2c_tensorboard/test run_9/events.out.tfevents.1746131109.wirelessprv-10-193-255-26.near.illinois.edu.75793.0 differ
+diff --git a/a2c_uam_toy.zip b/a2c_uam_toy.zip
+deleted file mode 100644
+index cf9d8abf..00000000
+Binary files a/a2c_uam_toy.zip and /dev/null differ
+diff --git a/ppo_tensorboard/test run_1/events.out.tfevents.1746133617.wirelessprv-10-193-255-26.near.illinois.edu.78944.0 b/ppo_tensorboard/test run_1/events.out.tfevents.1746133617.wirelessprv-10-193-255-26.near.illinois.edu.78944.0
+new file mode 100644
+index 00000000..cb23b530
+Binary files /dev/null and b/ppo_tensorboard/test run_1/events.out.tfevents.1746133617.wirelessprv-10-193-255-26.near.illinois.edu.78944.0 differ
+diff --git a/ppo_tensorboard/test run_11/events.out.tfevents.1744787560.Daniels-MacBook-Pro.local.82443.0 b/ppo_tensorboard/test run_11/events.out.tfevents.1744787560.Daniels-MacBook-Pro.local.82443.0
+deleted file mode 100644
+index 0b9b5534..00000000
+Binary files a/ppo_tensorboard/test run_11/events.out.tfevents.1744787560.Daniels-MacBook-Pro.local.82443.0 and /dev/null differ
+diff --git a/ppo_tensorboard/test run_12/events.out.tfevents.1744787685.Daniels-MacBook-Pro.local.82809.0 b/ppo_tensorboard/test run_12/events.out.tfevents.1744787685.Daniels-MacBook-Pro.local.82809.0
+deleted file mode 100644
+index 2418c553..00000000
+Binary files a/ppo_tensorboard/test run_12/events.out.tfevents.1744787685.Daniels-MacBook-Pro.local.82809.0 and /dev/null differ
+diff --git a/ppo_tensorboard/test run_13/events.out.tfevents.1744787808.Daniels-MacBook-Pro.local.83198.0 b/ppo_tensorboard/test run_13/events.out.tfevents.1744787808.Daniels-MacBook-Pro.local.83198.0
+deleted file mode 100644
+index 25ee905c..00000000
+Binary files a/ppo_tensorboard/test run_13/events.out.tfevents.1744787808.Daniels-MacBook-Pro.local.83198.0 and /dev/null differ
+diff --git a/ppo_tensorboard/test run_14/events.out.tfevents.1744787935.Daniels-MacBook-Pro.local.83584.0 b/ppo_tensorboard/test run_14/events.out.tfevents.1744787935.Daniels-MacBook-Pro.local.83584.0
+deleted file mode 100644
+index 44117646..00000000
+Binary files a/ppo_tensorboard/test run_14/events.out.tfevents.1744787935.Daniels-MacBook-Pro.local.83584.0 and /dev/null differ
+diff --git a/ppo_tensorboard/test run_15/events.out.tfevents.1744788436.Daniels-MacBook-Pro.local.84245.0 b/ppo_tensorboard/test run_15/events.out.tfevents.1744788436.Daniels-MacBook-Pro.local.84245.0
+deleted file mode 100644
+index 65bee3ef..00000000
+Binary files a/ppo_tensorboard/test run_15/events.out.tfevents.1744788436.Daniels-MacBook-Pro.local.84245.0 and /dev/null differ
+diff --git a/ppo_tensorboard/test run_16/events.out.tfevents.1744788707.Daniels-MacBook-Pro.local.85036.0 b/ppo_tensorboard/test run_16/events.out.tfevents.1744788707.Daniels-MacBook-Pro.local.85036.0
+deleted file mode 100644
+index b56b9cf0..00000000
+Binary files a/ppo_tensorboard/test run_16/events.out.tfevents.1744788707.Daniels-MacBook-Pro.local.85036.0 and /dev/null differ
+diff --git a/ppo_tensorboard/test run_17/events.out.tfevents.1744788818.Daniels-MacBook-Pro.local.85423.0 b/ppo_tensorboard/test run_17/events.out.tfevents.1744788818.Daniels-MacBook-Pro.local.85423.0
+deleted file mode 100644
+index 06c5c492..00000000
+Binary files a/ppo_tensorboard/test run_17/events.out.tfevents.1744788818.Daniels-MacBook-Pro.local.85423.0 and /dev/null differ
+diff --git a/ppo_tensorboard/test run_18/events.out.tfevents.1744788951.Daniels-MacBook-Pro.local.85814.0 b/ppo_tensorboard/test run_18/events.out.tfevents.1744788951.Daniels-MacBook-Pro.local.85814.0
+deleted file mode 100644
+index 697f0b81..00000000
+Binary files a/ppo_tensorboard/test run_18/events.out.tfevents.1744788951.Daniels-MacBook-Pro.local.85814.0 and /dev/null differ
+diff --git a/ppo_tensorboard/test run_19/events.out.tfevents.1744789060.Daniels-MacBook-Pro.local.86174.0 b/ppo_tensorboard/test run_19/events.out.tfevents.1744789060.Daniels-MacBook-Pro.local.86174.0
+deleted file mode 100644
+index 340fba97..00000000
+Binary files a/ppo_tensorboard/test run_19/events.out.tfevents.1744789060.Daniels-MacBook-Pro.local.86174.0 and /dev/null differ
+diff --git a/ppo_tensorboard/test run_2/events.out.tfevents.1746134025.wirelessprv-10-193-255-26.near.illinois.edu.79905.0 b/ppo_tensorboard/test run_2/events.out.tfevents.1746134025.wirelessprv-10-193-255-26.near.illinois.edu.79905.0
+new file mode 100644
+index 00000000..754a3740
+Binary files /dev/null and b/ppo_tensorboard/test run_2/events.out.tfevents.1746134025.wirelessprv-10-193-255-26.near.illinois.edu.79905.0 differ
+diff --git a/ppo_tensorboard/test run_3/events.out.tfevents.1746134214.wirelessprv-10-193-255-26.near.illinois.edu.80557.0 b/ppo_tensorboard/test run_3/events.out.tfevents.1746134214.wirelessprv-10-193-255-26.near.illinois.edu.80557.0
+new file mode 100644
+index 00000000..43224f43
+Binary files /dev/null and b/ppo_tensorboard/test run_3/events.out.tfevents.1746134214.wirelessprv-10-193-255-26.near.illinois.edu.80557.0 differ
+diff --git a/ppo_tensorboard/test run_4/events.out.tfevents.1746134681.wirelessprv-10-193-255-26.near.illinois.edu.81125.0 b/ppo_tensorboard/test run_4/events.out.tfevents.1746134681.wirelessprv-10-193-255-26.near.illinois.edu.81125.0
+new file mode 100644
+index 00000000..b42b70e1
+Binary files /dev/null and b/ppo_tensorboard/test run_4/events.out.tfevents.1746134681.wirelessprv-10-193-255-26.near.illinois.edu.81125.0 differ
+diff --git a/uam_toy.zip b/uam_toy.zip
+index 13433ff2..3445d9b2 100644
+Binary files a/uam_toy.zip and b/uam_toy.zip differ
+diff --git a/vec_normalize.pkl b/vec_normalize.pkl
+new file mode 100644
+index 00000000..ea00ae93
+Binary files /dev/null and b/vec_normalize.pkl differ

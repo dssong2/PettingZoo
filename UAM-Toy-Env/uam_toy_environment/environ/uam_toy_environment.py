@@ -238,8 +238,11 @@ class UAMToyEnvironment(gym.Env):
             self.num_vertiports - (drone_starting_vertiport + 1)
         ]
         # if moving closer to vertiport, positive reward, negative if moving farther away
-        # reward_goal = (1. * (-np.linalg.norm(next_dist) + np.linalg.norm(initial_dist))) / self.grid_size
-        reward_goal = -np.linalg.norm(next_dist)
+        reward_goal = (10. * (-np.linalg.norm(next_dist) + np.linalg.norm(initial_dist))) / self.grid_size
+        # reward_goal = -np.linalg.norm(next_dist)
+
+        # kp, ki, kd = 1, 1, 1 # Proportional, integral, and derivative gains for the reward function
+        # reward_goal = -kp * np.linalg.norm(initial_dist) - ki * np.linalg.norm(next_dist - initial_dist) * self.dt - kd * np.linalg.norm(next_dist - initial_dist) / self.dt
 
         agent_collision = 0.0
         obstacle_collision = 0.0
@@ -279,7 +282,7 @@ class UAMToyEnvironment(gym.Env):
                 self.S_v + 2,
             ):
             # if all(self.drone_pos[drone] == self.vertiports_loc[1 if self.drone_vertiport[drone] == 0 else 0]):
-                vertiport_reached += 10.0 * 0
+                vertiport_reached += 50.0
                 # time += (self.max_steps - self.time_step) * 1.0e4
             if self._is_overlapping(
                 self.drone_pos[drone],
@@ -293,7 +296,9 @@ class UAMToyEnvironment(gym.Env):
             
         # if self.time_step >= self.max_steps:
         #     time += -1000.0
-        reward = 10 * reward_goal + agent_collision + obstacle_collision + out_of_bounds + vertiport_reached + time
+
+
+        reward = 1 * reward_goal + agent_collision + obstacle_collision + out_of_bounds + vertiport_reached + time
 
         return reward
 

@@ -1,0 +1,16 @@
+{
+  "os":  "macOS-15.5-arm64-arm-64bit",
+  "python":  "CPython 3.12.9",
+  "startedAt":  "2025-06-11T05:57:53.952649Z",
+  "program":  "/Users/dsong/Library/CloudStorage/OneDrive-UniversityofIllinois-Urbana/Research/LIRA/UAM/PettingZoo/UAM-Toy-Env/train.py",
+  "codePath":  "UAM-Toy-Env/train.py",
+  "git":  {
+    "remote":  "https://github.com/dssong2/PettingZoo",
+    "commit":  "844c001cd31b3489046c41aba78184eb654c7666"
+  },
+  "email":  "dssong2@illinois.edu",
+  "root":  "/Users/dsong/Library/CloudStorage/OneDrive-UniversityofIllinois-Urbana/Research/LIRA/UAM/PettingZoo",
+  "host":  "Daniels-MacBook-Pro.local",
+  "executable":  "/Users/dsong/miniforge3/bin/python",
+  "codePathLocal":  "UAM-Toy-Env/train.py"
+}

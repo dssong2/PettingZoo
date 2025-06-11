@@ -1,0 +1,43 @@
+{
+  "os":  "macOS-15.5-arm64-arm-64bit",
+  "python":  "CPython 3.12.9",
+  "startedAt":  "2025-06-11T06:18:40.223422Z",
+  "program":  "/Users/dsong/Library/CloudStorage/OneDrive-UniversityofIllinois-Urbana/Research/LIRA/UAM/PettingZoo/UAM-Toy-Env/train.py",
+  "codePath":  "UAM-Toy-Env/train.py",
+  "git":  {
+    "remote":  "https://github.com/dssong2/PettingZoo",
+    "commit":  "844c001cd31b3489046c41aba78184eb654c7666"
+  },
+  "email":  "dssong2@illinois.edu",
+  "root":  "/Users/dsong/Library/CloudStorage/OneDrive-UniversityofIllinois-Urbana/Research/LIRA/UAM/PettingZoo",
+  "host":  "Daniels-MacBook-Pro.local",
+  "executable":  "/Users/dsong/miniforge3/bin/python",
+  "codePathLocal":  "UAM-Toy-Env/train.py",
+  "cpu_count":  12,
+  "cpu_count_logical":  12,
+  "disk":  {
+    "/":  {
+      "total":  "494384795648",
+      "used":  "135231193088"
+    },
+    "/System/Volumes/Data":  {
+      "total":  "494384795648",
+      "used":  "135231193088"
+    }
+  },
+  "memory":  {
+    "total":  "25769803776"
+  },
+  "cpu":  {
+    "count":  12,
+    "countLogical":  12
+  },
+  "apple":  {
+    "name":  "Apple M4 Pro",
+    "ecpuCores":  4,
+    "pcpuCores":  8,
+    "gpuCores":  16,
+    "memoryGb":  24,
+    "ramTotalBytes":  "25769803776"
+  }
+}

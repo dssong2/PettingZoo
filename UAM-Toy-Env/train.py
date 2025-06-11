@@ -7,13 +7,26 @@ from stable_baselines3 import A2C
 from stable_baselines3 import PPO
 from stable_baselines3 import SAC
 from stable_baselines3.common.vec_env import DummyVecEnv, VecNormalize
+from stable_baselines3.common.monitor import Monitor
+import wandb
+from wandb.integration.sb3 import WandbCallback
 
 # Ensure the UAMToyEnvironment module is accessible.
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from uam_toy_environment.environ.uam_toy_environment import UAMToyEnvironment
 
-"""Test the learning process of the UAMToyEnvironment."""
-print("Here 0!")
+total_timesteps = 1000000  # Define the total timesteps for training.
+# Initialize WandB for logging.
+wandb.init(
+    project="uam-toy-project",  # Change this to your project name
+    name="uam-toy-run",  # Change this to your run name
+    config={"total_timesteps": total_timesteps, "algo": "PPO"},
+    sync_tensorboard=True,  # Automatically sync TensorBoard logs
+    monitor_gym=True,       # Monitor Gym environments
+    save_code=True,
+)
+
+# Register the UAMToyEnvironment.
 gym.register(
     id="UAMToyEnvironment-v0",
     entry_point="uam_toy_environment.environ.uam_toy_environment:UAMToyEnvironment",
@@ -23,6 +36,7 @@ gym.register(
 print("Here 1!")
 def make_env():
     env = gym.make("UAMToyEnvironment-v0", render_mode="rgb_array", num_obstacles=1)
+    env = Monitor(env)  # Wrap the environment with Monitor for logging.
     env = gym.wrappers.FlattenObservation(env)
     return env
 
@@ -43,14 +57,19 @@ model_PPO1 = PPO(
     verbose=1,
     tensorboard_log="./ppo_tensorboard/",
 )
-# model_SAC = SAC(
+# model_SAC = SAC( # try this
 #     "MlpPolicy",
 #     env,
 #     verbose=1,
 #     tensorboard_log="./sac_tensorboard/",
 # )
 # Train the model for a specified number of timesteps.
-model_PPO1.learn(total_timesteps=100000, tb_log_name="test run", progress_bar=True)
+model_PPO1.learn(
+    total_timesteps=total_timesteps,
+    tb_log_name="test run",
+    progress_bar=True,
+    callback=WandbCallback()
+)
 # model.learn(total_timesteps=100000, tb_log_name="second_run", reset_num_timesteps=False, progress_bar=True)
 # model.learn(total_timesteps=100000, tb_log_name="third_run", reset_num_timesteps=False, progress_bar=True)
 # Save the model.
