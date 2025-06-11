@@ -22,7 +22,7 @@ class UAMToyEnvironment(gym.Env):
         S_o: int = 1,
         max_accel: float = 5.0,
         max_vel : float = 500.0,
-        max_steps: int = 100,
+        max_steps: int = 200,
         max_obstacles=10,
         num_obstacles=10,
         num_vertiports=2,
@@ -140,6 +140,7 @@ class UAMToyEnvironment(gym.Env):
                     vel_diff = np.array(self.drone_vel[j], dtype=np.float32) - drone_vel
                     rel_drone_positions.append(pos_diff)
                     rel_drone_velocities.append(vel_diff)
+                    
             rel_drone_positions = np.array(rel_drone_positions, dtype=np.float32)
             rel_drone_velocities = np.array(rel_drone_velocities, dtype=np.float32)
 
@@ -164,17 +165,21 @@ class UAMToyEnvironment(gym.Env):
             rel_vert_velocities = np.array(rel_vert_velocities, dtype=np.float32)
 
             return {
+                "drone_pos": drone_pos,
+                "drone_vel": drone_vel,
                 "rel_drone_positions": rel_drone_positions,
                 "rel_drone_velocities": rel_drone_velocities,
                 "rel_obst_positions": rel_obst_positions,
-                "rel_obst_velocities": rel_obst_velocities,
+                # "rel_obst_velocities": rel_obst_velocities,
                 "rel_vert_positions": rel_vert_positions,
-                "rel_vert_velocities": rel_vert_velocities,
+                # "rel_vert_velocities": rel_vert_velocities,
             }
 
         # If only one drone exists, return its observation directly.
         if self.num_drones == 1:
-            return build_obs_for_agent(0)
+            obs_dict = build_obs_for_agent(0)
+            flat_obs = np.concatenate([obs_dict[key].flatten() for key in sorted(obs_dict.keys())]).astype(np.float32)
+            return obs_dict, flat_obs
         else:
             # For multi-agent, return a dict mapping agent keys (as strings) to the corresponding observation.
             obs = {}
@@ -226,14 +231,15 @@ class UAMToyEnvironment(gym.Env):
         # obs_initial_multi_agent = obs_initial[str(agent)] # use if more than one drone
         # obs_next_multi_agent = obs_next[str(agent)] # use if more than one drone
 
-        initial_pos = obs_initial_single_agent["rel_vert_positions"][ # substitute single_agent for multi_agent if more than one drone
+        initial_dist = obs_initial_single_agent["rel_vert_positions"][ # substitute single_agent for multi_agent if more than one drone
             self.num_vertiports - (drone_starting_vertiport + 1)
         ]
-        next_pos = obs_next_single_agent["rel_vert_positions"][ # substitute single_agent for multi_agent if more than one drone
+        next_dist = obs_next_single_agent["rel_vert_positions"][ # substitute single_agent for multi_agent if more than one drone
             self.num_vertiports - (drone_starting_vertiport + 1)
         ]
         # if moving closer to vertiport, positive reward, negative if moving farther away
-        reward_goal = 1. * (-np.linalg.norm(next_pos) + np.linalg.norm(initial_pos))**3
+        # reward_goal = (1. * (-np.linalg.norm(next_dist) + np.linalg.norm(initial_dist))) / self.grid_size
+        reward_goal = -np.linalg.norm(next_dist)
 
         agent_collision = 0.0
         obstacle_collision = 0.0
@@ -256,7 +262,7 @@ class UAMToyEnvironment(gym.Env):
                 self.obstacles_pos[i],
                 self.S_o,
             ):
-                obstacle_collision += -100.0
+                obstacle_collision += -5.0
         for drone in self.drones:
             any_out_of_bounds = (
                 self.drone_pos[drone][0] < 0
@@ -264,21 +270,30 @@ class UAMToyEnvironment(gym.Env):
                 or self.drone_pos[drone][1] < 0
                 or self.drone_pos[drone][1] > self.grid_size)
             if any_out_of_bounds:
-                out_of_bounds += -100.0
+                out_of_bounds += -5.0
         for drone in self.drones:
             if self._is_overlapping(
                 self.drone_pos[drone],
                 self.S_d,
                 self.vertiports_loc[1 if self.drone_vertiport[drone] == 0 else 0],
-                0,
+                self.S_v + 2,
             ):
             # if all(self.drone_pos[drone] == self.vertiports_loc[1 if self.drone_vertiport[drone] == 0 else 0]):
-                vertiport_reached += 1.0e3
-                time += (self.max_steps - self.time_step) * 1.0e4
+                vertiport_reached += 10.0 * 0
+                # time += (self.max_steps - self.time_step) * 1.0e4
+            if self._is_overlapping(
+                self.drone_pos[drone],
+                self.S_d,
+                self.vertiports_loc[1 if self.drone_vertiport[drone] == 0 else 0],
+                0.5 * self.S_v,
+            ):
+                vertiport_reached += 50.0 * 0
+                # time += (self.max_steps - self.time_step) * 1.0e4
                 print("Reached vertiport!")
-        if self.time_step >= self.max_steps:
-            time += -1000.0
-        reward = reward_goal + agent_collision + obstacle_collision + out_of_bounds + vertiport_reached + time
+            
+        # if self.time_step >= self.max_steps:
+        #     time += -1000.0
+        reward = 10 * reward_goal + agent_collision + obstacle_collision + out_of_bounds + vertiport_reached + time
 
         return reward
 
@@ -376,10 +391,10 @@ class UAMToyEnvironment(gym.Env):
             self.drone_vel[i] = (0.0, 0.0)  # Set initial velocity to 0
 
         # Implement _get_obs()
-        drone_obs = self._get_obs()
+        drone_obs, flat_drone_obs = self._get_obs()
         # obs = OrderedDict({f"{a}": drone_obs[a] for a in self.drones}) do I need this line if my key is already defined in the dictionary drone_obs?
         info = {}
-        return drone_obs, info
+        return flat_drone_obs, info
 
     def step(self, actions):
         """Take a step in the environment.
@@ -418,10 +433,11 @@ class UAMToyEnvironment(gym.Env):
         ):
             raise RuntimeError("Environment not initialized; call reset() first.")
 
-        current_obs = self._get_obs()
+        current_obs, flat_current_obs = self._get_obs()
         # take an action
         # update state with kinematics equations for each drone
         for i in range(self.num_drones):
+            #TODO: stop the drone at boundary, position stays same, velocity same
 
             # i not needed as param bc agent param not used?
             # action is np.array([x accel, y accel])
@@ -463,7 +479,7 @@ class UAMToyEnvironment(gym.Env):
             self.drone_pos[i] = (px, py)
             
         # get next_obs
-        next_obs = self._get_obs()
+        next_obs, flat_next_obs = self._get_obs()
         self.time_step += 1  # increment time step
 
         # compute reward using obs and next_obs
@@ -489,7 +505,7 @@ class UAMToyEnvironment(gym.Env):
                 self.drone_pos[0],
                 self.S_d,
                 self.vertiports_loc[1 if self.drone_vertiport[0] == 0 else 0],
-                0,
+                0 + 0.5 * self.S_v, # add this change to the new test file
             ):
             all_reached = True
         any_out_of_bounds = any(
@@ -505,7 +521,7 @@ class UAMToyEnvironment(gym.Env):
         info = {i: {} for i in self.drones}
 
         rewards_single_agent = rewards[0]
-        return next_obs, rewards_single_agent, terminated, truncated, info
+        return flat_next_obs, rewards_single_agent, terminated, truncated, info
 
     ## How to account for when drones spawn at the vertiports and must be overlapping?
     def collided(self, drone: int) -> bool:
@@ -605,6 +621,18 @@ class UAMToyEnvironment(gym.Env):
     def observation_space(self):
         max_rel_drone_vel = float(2. * self.max_vel)
         inner_space = Dict({
+            "drone_pos": Box(
+                low=-self.grid_size,
+                high=self.grid_size,
+                shape=(2,),
+                dtype=np.float32,
+            ),
+            "drone_vel": Box(
+                low=-self.max_vel,
+                high=self.max_vel,
+                shape=(2,),
+                dtype=np.float32,
+            ),
             "rel_drone_positions": Box(
                 low=-self.grid_size,
                 high=self.grid_size,
@@ -623,29 +651,31 @@ class UAMToyEnvironment(gym.Env):
                 shape=(self.num_obstacles, 2),
                 dtype=np.float32,
             ),
-            "rel_obst_velocities": Box(
-                low=-self.max_vel,
-                high=self.max_vel,
-                shape=(self.num_obstacles, 2),
-                dtype=np.float32,
-            ),
+            # "rel_obst_velocities": Box(
+            #     low=-self.max_vel,
+            #     high=self.max_vel,
+            #     shape=(self.num_obstacles, 2),
+            #     dtype=np.float32,
+            # ),
             "rel_vert_positions": Box(
                 low=-self.grid_size,
                 high=self.grid_size,
                 shape=(self.num_vertiports, 2),
                 dtype=np.float32,
             ),
-            "rel_vert_velocities": Box(
-                low=-self.max_vel,
-                high=self.max_vel,
-                shape=(self.num_vertiports, 2),
-                dtype=np.float32,
-            ),
+            # "rel_vert_velocities": Box(
+            #     low=-self.max_vel,
+            #     high=self.max_vel,
+            #     shape=(self.num_vertiports, 2),
+            #     dtype=np.float32,
+            # ),
         })
         
         if self.num_drones == 1:
             # For a single agent environment, just return the inner space.
-            return inner_space
+            # In observation_space:
+            obs_size = sum(int(np.prod(tuple(space.shape))) for space in inner_space.spaces.values() if space.shape is not None)
+            return Box(low=-np.inf, high=np.inf, shape=(obs_size,), dtype=np.float32)
         else:
             # For multiple agents, return a dictionary mapping agent keys to the inner space.
             return Dict({str(i): inner_space for i in range(self.num_drones)})
