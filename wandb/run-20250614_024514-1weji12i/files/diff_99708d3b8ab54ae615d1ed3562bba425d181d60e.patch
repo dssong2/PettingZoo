@@ -1,0 +1,126 @@
+diff --git a/UAM-Toy-Env/eval.py b/UAM-Toy-Env/eval.py
+index 9ea91eb4..e298e77c 100644
+--- a/UAM-Toy-Env/eval.py
++++ b/UAM-Toy-Env/eval.py
+@@ -45,9 +45,15 @@ vec_env = model_PPO1.get_env()
+ if vec_env is None:
+     print("vec_env is still None; check that the environment was properly attached using set_env().")
+ obs = vec_env.reset()
++frames = []
++raw_env = vec_env.envs[0]  # Get the raw environment for rendering.
+ for i in range(1000):
+     action, _states = model_PPO1.predict(obs, deterministic=False)
+     obs, rewards, dones, info = vec_env.step(action)
+     vec_env.render("human")
++    frame = raw_env.render()
++    frames.append(frame)
++
++imageio.mimsave("UAM-Toy-Env/Data/UAM Videos and Images/uam_toy.gif", frames, fps=30)
+ print("DONE!!")
+ 
+diff --git a/UAM-Toy-Env/train.py b/UAM-Toy-Env/train.py
+index 9e866bb3..830061a9 100644
+--- a/UAM-Toy-Env/train.py
++++ b/UAM-Toy-Env/train.py
+@@ -15,7 +15,7 @@ from wandb.integration.sb3 import WandbCallback
+ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+ from uam_toy_environment.environ.uam_toy_environment import UAMToyEnvironment
+ 
+-total_timesteps = 1000000  # Define the total timesteps for training.
++total_timesteps = 5e5  # Define the total timesteps for training.
+ # Initialize WandB for logging.
+ wandb.init(
+     project="uam-toy-project",  # Change this to your project name
+@@ -65,7 +65,7 @@ model_PPO1 = PPO(
+ # )
+ # Train the model for a specified number of timesteps.
+ model_PPO1.learn(
+-    total_timesteps=total_timesteps,
++    total_timesteps=int(total_timesteps),
+     tb_log_name="test run",
+     progress_bar=True,
+     callback=WandbCallback()
+diff --git a/UAM-Toy-Env/uam_toy_environment/environ/uam_toy_environment.py b/UAM-Toy-Env/uam_toy_environment/environ/uam_toy_environment.py
+index bcb64924..6335c226 100644
+--- a/UAM-Toy-Env/uam_toy_environment/environ/uam_toy_environment.py
++++ b/UAM-Toy-Env/uam_toy_environment/environ/uam_toy_environment.py
+@@ -238,8 +238,10 @@ class UAMToyEnvironment(gym.Env):
+             self.num_vertiports - (drone_starting_vertiport + 1)
+         ]
+         # if moving closer to vertiport, positive reward, negative if moving farther away
+-        reward_goal = (10. * (-np.linalg.norm(next_dist) + np.linalg.norm(initial_dist))) / self.grid_size
++        # reward_goal = (10. * (-np.linalg.norm(next_dist) + np.linalg.norm(initial_dist))) / self.grid_size
+         # reward_goal = -np.linalg.norm(next_dist)
++        # reward_goal = 10 * (np.linalg.norm(initial_dist) - np.linalg.norm(next_dist))
++        reward_goal = -np.sum(np.square(next_dist))
+ 
+         # kp, ki, kd = 1, 1, 1 # Proportional, integral, and derivative gains for the reward function
+         # reward_goal = -kp * np.linalg.norm(initial_dist) - ki * np.linalg.norm(next_dist - initial_dist) * self.dt - kd * np.linalg.norm(next_dist - initial_dist) / self.dt
+@@ -247,6 +249,7 @@ class UAMToyEnvironment(gym.Env):
+         agent_collision = 0.0
+         obstacle_collision = 0.0
+         out_of_bounds = 0.0
++        approaching_vertiport = 0.0
+         vertiport_reached = 0.0
+         time = 0.0
+         for i in range(self.num_drones):
+@@ -265,7 +268,7 @@ class UAMToyEnvironment(gym.Env):
+                 self.obstacles_pos[i],
+                 self.S_o,
+             ):
+-                obstacle_collision += -5.0
++                obstacle_collision += -100.0
+         for drone in self.drones:
+             any_out_of_bounds = (
+                 self.drone_pos[drone][0] < 0
+@@ -273,7 +276,7 @@ class UAMToyEnvironment(gym.Env):
+                 or self.drone_pos[drone][1] < 0
+                 or self.drone_pos[drone][1] > self.grid_size)
+             if any_out_of_bounds:
+-                out_of_bounds += -5.0
++                out_of_bounds += -100.0
+         for drone in self.drones:
+             if self._is_overlapping(
+                 self.drone_pos[drone],
+@@ -282,7 +285,7 @@ class UAMToyEnvironment(gym.Env):
+                 self.S_v + 2,
+             ):
+             # if all(self.drone_pos[drone] == self.vertiports_loc[1 if self.drone_vertiport[drone] == 0 else 0]):
+-                vertiport_reached += 50.0
++                approaching_vertiport += 50.0
+                 # time += (self.max_steps - self.time_step) * 1.0e4
+             if self._is_overlapping(
+                 self.drone_pos[drone],
+@@ -290,15 +293,17 @@ class UAMToyEnvironment(gym.Env):
+                 self.vertiports_loc[1 if self.drone_vertiport[drone] == 0 else 0],
+                 0.5 * self.S_v,
+             ):
+-                vertiport_reached += 50.0 * 0
++                vertiport_reached += 100.0
+                 # time += (self.max_steps - self.time_step) * 1.0e4
+                 print("Reached vertiport!")
+             
+         # if self.time_step >= self.max_steps:
+         #     time += -1000.0
+ 
+-
+-        reward = 1 * reward_goal + agent_collision + obstacle_collision + out_of_bounds + vertiport_reached + time
++        # reward = 1 * reward_goal + agent_collision + obstacle_collision + out_of_bounds \
++        #  + approaching_vertiport + vertiport_reached
++        
++        reward = reward_goal + approaching_vertiport + vertiport_reached
+ 
+         return reward
+ 
+diff --git a/uam_toy.zip b/uam_toy.zip
+index 156c1bb0..5b2a297c 100644
+Binary files a/uam_toy.zip and b/uam_toy.zip differ
+diff --git a/wandb/latest-run b/wandb/latest-run
+index 83be4d53..28673050 120000
+--- a/wandb/latest-run
++++ b/wandb/latest-run
+@@ -1 +1 @@
+-run-20250611_012422-ecukq2ji
+\ No newline at end of file
++run-20250614_024514-1weji12i
+\ No newline at end of file

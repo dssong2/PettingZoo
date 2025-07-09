@@ -51,6 +51,7 @@ from pettingzoo.mpe._mpe_utils.core import Agent, Landmark, World
 from pettingzoo.mpe._mpe_utils.scenario import BaseScenario
 from pettingzoo.mpe._mpe_utils.simple_env import SimpleEnv, make_env
 from pettingzoo.utils.conversions import parallel_wrapper_fn
+from stable_baselines3 import PPO
 
 
 class raw_env(SimpleEnv, EzPickle):

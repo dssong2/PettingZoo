@@ -1,0 +1,37 @@
+diff --git a/UAM-Toy-Env/train.py b/UAM-Toy-Env/train.py
+index 9e866bb3..62d5a4d5 100644
+--- a/UAM-Toy-Env/train.py
++++ b/UAM-Toy-Env/train.py
+@@ -15,7 +15,7 @@ from wandb.integration.sb3 import WandbCallback
+ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+ from uam_toy_environment.environ.uam_toy_environment import UAMToyEnvironment
+ 
+-total_timesteps = 1000000  # Define the total timesteps for training.
++total_timesteps = 1e5  # Define the total timesteps for training.
+ # Initialize WandB for logging.
+ wandb.init(
+     project="uam-toy-project",  # Change this to your project name
+diff --git a/UAM-Toy-Env/uam_toy_environment/environ/uam_toy_environment.py b/UAM-Toy-Env/uam_toy_environment/environ/uam_toy_environment.py
+index bcb64924..bd287ee4 100644
+--- a/UAM-Toy-Env/uam_toy_environment/environ/uam_toy_environment.py
++++ b/UAM-Toy-Env/uam_toy_environment/environ/uam_toy_environment.py
+@@ -238,8 +238,8 @@ class UAMToyEnvironment(gym.Env):
+             self.num_vertiports - (drone_starting_vertiport + 1)
+         ]
+         # if moving closer to vertiport, positive reward, negative if moving farther away
+-        reward_goal = (10. * (-np.linalg.norm(next_dist) + np.linalg.norm(initial_dist))) / self.grid_size
+-        # reward_goal = -np.linalg.norm(next_dist)
++        # reward_goal = (10. * (-np.linalg.norm(next_dist) + np.linalg.norm(initial_dist))) / self.grid_size
++        reward_goal = 10 * -np.linalg.norm(next_dist)
+ 
+         # kp, ki, kd = 1, 1, 1 # Proportional, integral, and derivative gains for the reward function
+         # reward_goal = -kp * np.linalg.norm(initial_dist) - ki * np.linalg.norm(next_dist - initial_dist) * self.dt - kd * np.linalg.norm(next_dist - initial_dist) / self.dt
+diff --git a/wandb/latest-run b/wandb/latest-run
+index 83be4d53..43983a86 120000
+--- a/wandb/latest-run
++++ b/wandb/latest-run
+@@ -1 +1 @@
+-run-20250611_012422-ecukq2ji
+\ No newline at end of file
++run-20250611_123505-sd71rgst
+\ No newline at end of file

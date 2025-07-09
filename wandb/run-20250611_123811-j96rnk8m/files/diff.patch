@@ -1,0 +1,53 @@
+diff --git a/UAM-Toy-Env/train.py b/UAM-Toy-Env/train.py
+index 9e866bb3..9393ecb0 100644
+--- a/UAM-Toy-Env/train.py
++++ b/UAM-Toy-Env/train.py
+@@ -15,7 +15,7 @@ from wandb.integration.sb3 import WandbCallback
+ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+ from uam_toy_environment.environ.uam_toy_environment import UAMToyEnvironment
+ 
+-total_timesteps = 1000000  # Define the total timesteps for training.
++total_timesteps = 1e5  # Define the total timesteps for training.
+ # Initialize WandB for logging.
+ wandb.init(
+     project="uam-toy-project",  # Change this to your project name
+@@ -65,7 +65,7 @@ model_PPO1 = PPO(
+ # )
+ # Train the model for a specified number of timesteps.
+ model_PPO1.learn(
+-    total_timesteps=total_timesteps,
++    total_timesteps=int(total_timesteps),
+     tb_log_name="test run",
+     progress_bar=True,
+     callback=WandbCallback()
+diff --git a/UAM-Toy-Env/uam_toy_environment/environ/uam_toy_environment.py b/UAM-Toy-Env/uam_toy_environment/environ/uam_toy_environment.py
+index bcb64924..d425cfb2 100644
+--- a/UAM-Toy-Env/uam_toy_environment/environ/uam_toy_environment.py
++++ b/UAM-Toy-Env/uam_toy_environment/environ/uam_toy_environment.py
+@@ -238,11 +238,11 @@ class UAMToyEnvironment(gym.Env):
+             self.num_vertiports - (drone_starting_vertiport + 1)
+         ]
+         # if moving closer to vertiport, positive reward, negative if moving farther away
+-        reward_goal = (10. * (-np.linalg.norm(next_dist) + np.linalg.norm(initial_dist))) / self.grid_size
++        # reward_goal = (10. * (-np.linalg.norm(next_dist) + np.linalg.norm(initial_dist))) / self.grid_size
+         # reward_goal = -np.linalg.norm(next_dist)
+ 
+-        # kp, ki, kd = 1, 1, 1 # Proportional, integral, and derivative gains for the reward function
+-        # reward_goal = -kp * np.linalg.norm(initial_dist) - ki * np.linalg.norm(next_dist - initial_dist) * self.dt - kd * np.linalg.norm(next_dist - initial_dist) / self.dt
++        kp, ki, kd = 1, 1, 1 # Proportional, integral, and derivative gains for the reward function
++        reward_goal = -kp * np.linalg.norm(initial_dist) - ki * np.linalg.norm(next_dist - initial_dist) * self.dt - kd * np.linalg.norm(next_dist - initial_dist) / self.dt
+ 
+         agent_collision = 0.0
+         obstacle_collision = 0.0
+diff --git a/uam_toy.zip b/uam_toy.zip
+index 156c1bb0..55497cdf 100644
+Binary files a/uam_toy.zip and b/uam_toy.zip differ
+diff --git a/wandb/latest-run b/wandb/latest-run
+index 83be4d53..99ce14ea 120000
+--- a/wandb/latest-run
++++ b/wandb/latest-run
+@@ -1 +1 @@
+-run-20250611_012422-ecukq2ji
+\ No newline at end of file
++run-20250611_123811-j96rnk8m
+\ No newline at end of file

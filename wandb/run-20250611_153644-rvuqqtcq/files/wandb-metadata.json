@@ -1,0 +1,43 @@
+{
+  "os":  "Windows-11-10.0.26100-SP0",
+  "python":  "CPython 3.13.4",
+  "startedAt":  "2025-06-11T20:36:49.987681Z",
+  "program":  "c:\\Users\\dssong2\\OneDrive - University of Illinois - Urbana\\Research\\LIRA\\UAM\\PettingZoo\\UAM-Toy-Env\\train.py",
+  "codePath":  "UAM-Toy-Env\\train.py",
+  "git":  {
+    "remote":  "https://github.com/dssong2/PettingZoo",
+    "commit":  "99708d3b8ab54ae615d1ed3562bba425d181d60e"
+  },
+  "email":  "dssong2@illinois.edu",
+  "root":  "C:\\Users\\dssong2\\OneDrive - University of Illinois - Urbana\\Research\\LIRA\\UAM\\PettingZoo",
+  "host":  "TL-206-19",
+  "executable":  "C:\\Program Files\\Python313\\python.exe",
+  "codePathLocal":  "UAM-Toy-Env\\train.py",
+  "cpu_count":  6,
+  "cpu_count_logical":  12,
+  "gpu":  "NVIDIA T1000 8GB",
+  "gpu_count":  1,
+  "disk":  {
+    "/":  {
+      "total":  "1023549632512",
+      "used":  "248461795328"
+    }
+  },
+  "memory":  {
+    "total":  "33554628608"
+  },
+  "cpu":  {
+    "count":  6,
+    "countLogical":  12
+  },
+  "gpu_nvidia":  [
+    {
+      "name":  "NVIDIA T1000 8GB",
+      "memoryTotal":  "8589934592",
+      "cudaCores":  896,
+      "architecture":  "Turing",
+      "uuid":  "GPU-41eecf1e-b60e-6e3a-604c-45316ac8fb92"
+    }
+  ],
+  "cudaVersion":  "12.4"
+}

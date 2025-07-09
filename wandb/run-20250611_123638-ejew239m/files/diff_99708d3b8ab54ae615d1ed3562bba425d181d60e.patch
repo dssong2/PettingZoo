@@ -1,0 +1,34 @@
+diff --git a/UAM-Toy-Env/train.py b/UAM-Toy-Env/train.py
+index 9e866bb3..9393ecb0 100644
+--- a/UAM-Toy-Env/train.py
++++ b/UAM-Toy-Env/train.py
+@@ -15,7 +15,7 @@ from wandb.integration.sb3 import WandbCallback
+ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+ from uam_toy_environment.environ.uam_toy_environment import UAMToyEnvironment
+ 
+-total_timesteps = 1000000  # Define the total timesteps for training.
++total_timesteps = 1e5  # Define the total timesteps for training.
+ # Initialize WandB for logging.
+ wandb.init(
+     project="uam-toy-project",  # Change this to your project name
+@@ -65,7 +65,7 @@ model_PPO1 = PPO(
+ # )
+ # Train the model for a specified number of timesteps.
+ model_PPO1.learn(
+-    total_timesteps=total_timesteps,
++    total_timesteps=int(total_timesteps),
+     tb_log_name="test run",
+     progress_bar=True,
+     callback=WandbCallback()
+diff --git a/uam_toy.zip b/uam_toy.zip
+index 156c1bb0..599a006b 100644
+Binary files a/uam_toy.zip and b/uam_toy.zip differ
+diff --git a/wandb/latest-run b/wandb/latest-run
+index 83be4d53..d57d0b92 120000
+--- a/wandb/latest-run
++++ b/wandb/latest-run
+@@ -1 +1 @@
+-run-20250611_012422-ecukq2ji
+\ No newline at end of file
++run-20250611_123638-ejew239m
+\ No newline at end of file

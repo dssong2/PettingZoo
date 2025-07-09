@@ -45,9 +45,15 @@ vec_env = model_PPO1.get_env()
 if vec_env is None:
     print("vec_env is still None; check that the environment was properly attached using set_env().")
 obs = vec_env.reset()
+frames = []
+raw_env = vec_env.envs[0]  # Get the raw environment for rendering.
 for i in range(1000):
     action, _states = model_PPO1.predict(obs, deterministic=False)
     obs, rewards, dones, info = vec_env.step(action)
     vec_env.render("human")
+    frame = raw_env.render()
+    frames.append(frame)
+
+imageio.mimsave("UAM-Toy-Env/Data/UAM Videos and Images/uam_toy.gif", frames, fps=30)
 print("DONE!!")
 
