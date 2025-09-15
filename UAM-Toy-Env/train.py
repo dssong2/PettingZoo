@@ -15,7 +15,7 @@ from wandb.integration.sb3 import WandbCallback
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from uam_toy_environment.environ.uam_toy_environment import UAMToyEnvironment
 
-total_timesteps = 10e5  # Define the total timesteps for training.
+total_timesteps = 5e5  # Define the total timesteps for training.
 # Initialize WandB for logging.
 wandb.init(
     project="uam-toy-project",  # Change this to your project name
@@ -73,6 +73,6 @@ model_PPO1.learn(
 # model.learn(total_timesteps=100000, tb_log_name="second_run", reset_num_timesteps=False, progress_bar=True)
 # model.learn(total_timesteps=100000, tb_log_name="third_run", reset_num_timesteps=False, progress_bar=True)
 # Save the model.
-model_PPO1.save("uam_toy")
+model_PPO1.save("debug_env")
 
 # env.save("vec_normalize.pkl")

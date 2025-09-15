@@ -36,7 +36,7 @@ env.norm_reward = False
 # print("Model trained and saved successfully.")
 
 # Load the model.
-model_PPO1 = PPO.load("uam_toy")
+model_PPO1 = PPO.load("debug_env")
 # Manually set the environment after loading.
 model_PPO1.set_env(env)
 print("Model trained and saved successfully.")
@@ -56,4 +56,3 @@ for i in range(1000):
 
 imageio.mimsave("UAM-Toy-Env/Data/UAM Videos and Images/uam_toy.gif", frames, fps=30)
 print("DONE!!")
-

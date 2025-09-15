@@ -1,0 +1,68 @@
+diff --git a/UAM-Toy-Env/train.py b/UAM-Toy-Env/train.py
+index 06d58b4c..9393ecb0 100644
+--- a/UAM-Toy-Env/train.py
++++ b/UAM-Toy-Env/train.py
+@@ -15,7 +15,7 @@ from wandb.integration.sb3 import WandbCallback
+ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+ from uam_toy_environment.environ.uam_toy_environment import UAMToyEnvironment
+ 
+-total_timesteps = 10e5  # Define the total timesteps for training.
++total_timesteps = 1e5  # Define the total timesteps for training.
+ # Initialize WandB for logging.
+ wandb.init(
+     project="uam-toy-project",  # Change this to your project name
+diff --git a/UAM-Toy-Env/uam_toy_environment/environ/uam_toy_environment.py b/UAM-Toy-Env/uam_toy_environment/environ/uam_toy_environment.py
+index 61283866..0e279fe0 100644
+--- a/UAM-Toy-Env/uam_toy_environment/environ/uam_toy_environment.py
++++ b/UAM-Toy-Env/uam_toy_environment/environ/uam_toy_environment.py
+@@ -180,8 +180,8 @@ class UAMToyEnvironment(gym.Env):
+             return {
+                 "drone_pos": drone_pos,
+                 "drone_vel": drone_vel,
+-                "rel_drone_positions": rel_drone_positions,
+-                "rel_drone_velocities": rel_drone_velocities,
++                # "rel_drone_positions": rel_drone_positions,
++                # "rel_drone_velocities": rel_drone_velocities,
+                 "rel_obst_positions": rel_obst_positions,
+                 # "rel_obst_velocities": rel_obst_velocities,
+                 "rel_vert_positions": rel_vert_positions,
+@@ -657,18 +657,18 @@ class UAMToyEnvironment(gym.Env):
+                 shape=(2,),
+                 dtype=np.float32,
+             ),
+-            "rel_drone_positions": Box(
+-                low=-self.grid_size,
+-                high=self.grid_size,
+-                shape=(self.num_drones - 1, 2),  # For one drone, this would be shape (0, 2)
+-                dtype=np.float32,
+-            ),
+-            "rel_drone_velocities": Box(
+-                low=-max_rel_drone_vel,
+-                high=max_rel_drone_vel,
+-                shape=(self.num_drones - 1, 2),
+-                dtype=np.float32,
+-            ),
++            # "rel_drone_positions": Box(
++            #     low=-self.grid_size,
++            #     high=self.grid_size,
++            #     shape=(self.num_drones - 1, 2),  # For one drone, this would be shape (0, 2)
++            #     dtype=np.float32,
++            # ),
++            # "rel_drone_velocities": Box(
++            #     low=-max_rel_drone_vel,
++            #     high=max_rel_drone_vel,
++            #     shape=(self.num_drones - 1, 2),
++            #     dtype=np.float32,
++            # ),
+             "rel_obst_positions": Box(
+                 low=-self.grid_size,
+                 high=self.grid_size,
+diff --git a/wandb/latest-run b/wandb/latest-run
+index 38beb94a..fe926403 120000
+--- a/wandb/latest-run
++++ b/wandb/latest-run
+@@ -1 +1 @@
+-run-20250614_045941-n16psgiw
+\ No newline at end of file
++run-20250709_000920-etce43y2
+\ No newline at end of file

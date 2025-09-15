@@ -1,0 +1,37 @@
+Problem:
+Everytime the drone starts at vertiport 1 (green), it always goes towards the upper left
+no matter what, which probably messes up the training. When it starts at vertiport 2 (purple),
+it usually goes to the correct destination.
+
+To address:
+- Check logic for setting destination vertiport
+- Set a fixed origin and destination vertiport
+- Also turn off "out of bounds" and make the boundaries a wall the drones can't pass through.
+    - The drone can move along the wall, but make it so that its always moving through rewards.
+    
+debug_env_v2 fixes starting vertiport and allows drone to move along the boundaries
+
+Addressed! Kind of works now in debug_v2.gif
+
+Next: add in vertiport_reached reward
+
+Addressed.
+
+Next: add penalty for barely moving along the walls (gets stuck as seen in debug_stuck.gif);
+      penalize for hitting obstacle
+
+Addressed. In env v4, penalty of being stuck against the wall/corner (-3.0) might not be large enough
+relative to the positive reward gained from reaching the vertiport (+500).
+
+v4 note: drone either goes directly to the target vertiport, or it misses it and gets stuck in corner
+
+Next: tune the reward for being stuck against wall/corner (mostly increase it)
+
+Addressed. In env v5, updated step function to prevent the drone to move out of bounds, it will just
+bounce off the wall instead (velocity is set to 0 if the action moves the drone out of bounds).
+
+Next: train a better model that travels directly to the vertiport destination, since in v5, it
+consistently just "bumps" off the wall and relies on an arbitrary checkpoint close to the vertiport
+to reset its velocity to 0 for an easier control maneuver to the destination.
+- Possible solution: make the out_of_bounds reward more negative to dissuade model from relying on
+  bouncing off the wall

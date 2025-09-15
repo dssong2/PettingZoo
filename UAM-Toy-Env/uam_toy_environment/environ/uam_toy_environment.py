@@ -180,8 +180,8 @@ class UAMToyEnvironment(gym.Env):
             return {
                 "drone_pos": drone_pos,
                 "drone_vel": drone_vel,
-                "rel_drone_positions": rel_drone_positions,
-                "rel_drone_velocities": rel_drone_velocities,
+                # "rel_drone_positions": rel_drone_positions,
+                # "rel_drone_velocities": rel_drone_velocities,
                 "rel_obst_positions": rel_obst_positions,
                 # "rel_obst_velocities": rel_obst_velocities,
                 "rel_vert_positions": rel_vert_positions,
@@ -253,9 +253,9 @@ class UAMToyEnvironment(gym.Env):
         ]
         # if moving closer to vertiport, positive reward, negative if moving farther away
         # reward_goal = (10. * (-np.linalg.norm(next_dist) + np.linalg.norm(initial_dist))) / self.grid_size
-        reward_goal = -np.linalg.norm(initial_dist / self.grid_size)
+        # reward_goal = -np.linalg.norm(initial_dist / self.grid_size)
         # reward_goal = 10 * (np.linalg.norm(initial_dist) - np.linalg.norm(next_dist))
-        # reward_goal = -np.sum(np.square(initial_dist))
+        reward_goal = -np.sum(np.square(initial_dist / self.grid_size))
 
         # kp, ki, kd = 1, 1, 1 # Proportional, integral, and derivative gains for the reward function
         # reward_goal = -kp * np.linalg.norm(initial_dist) - ki * np.linalg.norm(next_dist - initial_dist) * self.dt - kd * np.linalg.norm(next_dist - initial_dist) / self.dt
@@ -317,7 +317,7 @@ class UAMToyEnvironment(gym.Env):
         # reward = 1 * reward_goal + agent_collision + obstacle_collision + out_of_bounds \
         #  + approaching_vertiport + vertiport_reached
         
-        reward = 2 * reward_goal + out_of_bounds + approaching_vertiport
+        reward = reward_goal
 
         return reward
 
@@ -657,18 +657,18 @@ class UAMToyEnvironment(gym.Env):
                 shape=(2,),
                 dtype=np.float32,
             ),
-            "rel_drone_positions": Box(
-                low=-self.grid_size,
-                high=self.grid_size,
-                shape=(self.num_drones - 1, 2),  # For one drone, this would be shape (0, 2)
-                dtype=np.float32,
-            ),
-            "rel_drone_velocities": Box(
-                low=-max_rel_drone_vel,
-                high=max_rel_drone_vel,
-                shape=(self.num_drones - 1, 2),
-                dtype=np.float32,
-            ),
+            # "rel_drone_positions": Box(
+            #     low=-self.grid_size,
+            #     high=self.grid_size,
+            #     shape=(self.num_drones - 1, 2),  # For one drone, this would be shape (0, 2)
+            #     dtype=np.float32,
+            # ),
+            # "rel_drone_velocities": Box(
+            #     low=-max_rel_drone_vel,
+            #     high=max_rel_drone_vel,
+            #     shape=(self.num_drones - 1, 2),
+            #     dtype=np.float32,
+            # ),
             "rel_obst_positions": Box(
                 low=-self.grid_size,
                 high=self.grid_size,
