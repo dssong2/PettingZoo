@@ -35,3 +35,6 @@ consistently just "bumps" off the wall and relies on an arbitrary checkpoint clo
 to reset its velocity to 0 for an easier control maneuver to the destination.
 - Possible solution: make the out_of_bounds reward more negative to dissuade model from relying on
   bouncing off the wall
+- Additional consideration: create a curriculum for rewards (i.e. in phases, to encourage certain
+  actions initially and tune them as training progresses)
+- Adjust PPO hyperparameters
